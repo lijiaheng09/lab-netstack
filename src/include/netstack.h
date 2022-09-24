@@ -6,4 +6,20 @@
 #ifndef LAB_NETSTACK_NETSTACK_H
 #define LAB_NETSTACK_NETSTACK_H
 
+#include "device.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * Initialize the netstack.
+ * @return 0 on success, -1 on failure.
+ */
+int netstackInit(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
