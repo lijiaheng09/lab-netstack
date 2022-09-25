@@ -27,7 +27,7 @@ Device::~Device() {
 using namespace netstack_internal;
 
 // see pcap_set_timeout
-constexpr int BUFFER_TIMEOUT = 1000;
+static constexpr int BUFFER_TIMEOUT = 1000;
 
 int addDevice(const char *device) {
   char errbuf[PCAP_ERRBUF_SIZE];
