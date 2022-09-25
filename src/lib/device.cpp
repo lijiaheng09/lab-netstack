@@ -15,16 +15,6 @@ namespace netstack_internal {
 int nDevices = 0, nDevicesReserved = 0;
 Device *devices = nullptr;
 
-Device::Device(const char *name_, ether_addr eth_addr_, pcap_t *handle_)
-    : eth_addr(eth_addr_), handle(handle_) {
-  name = (char *)malloc(strlen(name_) + 1);
-  strcpy(name, name_);
-}
-
-Device::~Device() {
-  free(name);
-}
-
 } // namespace netstack_internal
 
 using namespace netstack_internal;
@@ -81,7 +71,19 @@ int addDevice(const char *device) {
     }
   }
 
-  new (&devices[nDevices++]) Device(device, addr, handle);
+  char *nameCopy = (char *)malloc(strlen(device) + 1);
+  if (!nameCopy) {
+    pcap_close(handle);
+    return -1;
+  }
+  strcpy(nameCopy, device);
+
+  devices[nDevices++] = {
+    name: nameCopy,
+    eth_addr: addr,
+    handle: handle
+  };
+
   return nDevices - 1;
 }
 
