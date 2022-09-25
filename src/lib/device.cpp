@@ -12,6 +12,7 @@
 
 namespace netstack_internal {
 
+std::shared_timed_mutex mutexDevices;
 int nDevices = 0, nDevicesReserved = 0;
 Device *devices = nullptr;
 
@@ -61,6 +62,8 @@ int addDevice(const char *device) {
     return -1;
   }
 
+  mutexDevices.lock();
+
   if (nDevices >= nDevicesReserved) {
     if (nDevicesReserved == 0)
       nDevicesReserved = 1;
@@ -84,18 +87,25 @@ int addDevice(const char *device) {
 
   devices[nDevices++] = {
     name: nameCopy,
-    eth_addr: addr,
+    ethAddr: addr,
     handle: handle,
     recvThread: new std::thread(deviceRecvAction, handle, id)
   };
   devices[id].recvThread->detach();
 
+  mutexDevices.unlock();
+
   return id;
 }
 
 int findDevice(const char *device) {
+  mutexDevices.lock_shared();
+  int ret = -1;
   for (int i = 0; i < nDevices; i++)
-    if (strcmp(devices[i].name, device) == 0)
-      return i;
-  return -1;
+    if (strcmp(devices[i].name, device) == 0) {
+      ret = i;
+      break;
+    }
+  mutexDevices.unlock_shared();
+  return ret;
 }

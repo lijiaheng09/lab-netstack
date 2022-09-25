@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <cstring>
+#include <atomic>
 
 #include <pcap/pcap.h>
 
@@ -11,9 +12,6 @@ using namespace netstack_internal;
 
 int sendFrame(const void *buf, int len, int ethtype, const void *destmac,
               int id) {
-  if (id >= nDevices)
-    return -1; // invalid device id
-
   int frameLen = ETHER_HDR_LEN + len;
   if (len < 0 || frameLen + ETHER_CRC_LEN > ETHER_MAX_LEN)
     return -1;
@@ -21,18 +19,25 @@ int sendFrame(const void *buf, int len, int ethtype, const void *destmac,
   if ((ethtype >> 16) != 0)
     return -1;
 
+  mutexDevices.lock_shared();
+  if (id >= nDevices)
+    return -1; // invalid device id
+  pcap_t *handle = devices[id].handle;
+  ether_addr srcAddr = devices[id].ethAddr;
+  mutexDevices.unlock_shared();
+
   u_char *frame = (u_char *)malloc(frameLen);
   if (!frame)
     return -1;
 
-  uint16_t ethtype_net = htons((uint16_t)ethtype);
+  uint16_t ethtypeNet = htons((uint16_t)ethtype);
 
   memcpy(frame, destmac, ETHER_ADDR_LEN);
-  memcpy(frame + ETHER_ADDR_LEN, &devices[id].eth_addr, ETHER_ADDR_LEN);
-  memcpy(frame + ETHER_ADDR_LEN * 2, &ethtype_net, ETHER_TYPE_LEN);
+  memcpy(frame + ETHER_ADDR_LEN, &srcAddr, ETHER_ADDR_LEN);
+  memcpy(frame + ETHER_ADDR_LEN * 2, &ethtypeNet, ETHER_TYPE_LEN);
   memcpy(frame + ETHER_HDR_LEN, buf, len);
 
-  int ret = pcap_sendpacket(devices[id].handle, frame, frameLen);
+  int ret = pcap_sendpacket(handle, frame, frameLen);
   free(frame);
   if (ret != 0)
     return -1;
@@ -40,7 +45,7 @@ int sendFrame(const void *buf, int len, int ethtype, const void *destmac,
   return 0;
 }
 
-static frameReceiveCallback curCallback;
+static std::atomic<frameReceiveCallback> atomicCurCallback;
 
 namespace netstack_internal {
 
@@ -51,6 +56,7 @@ struct DeviceRecvActionArgs {
 
 void devicePcapLoopHandler(u_char *user, const pcap_pkthdr *h, const u_char *bytes) {
   DeviceRecvActionArgs args = *(DeviceRecvActionArgs *)user;
+  auto *curCallback = atomicCurCallback.load();
   if (curCallback) {
     if (curCallback(bytes, h->caplen, args.id))
       pcap_breakloop(args.handle);
@@ -66,6 +72,6 @@ void deviceRecvAction(pcap_t *handle, int id) {
 } // namespace netstack_internal
 
 int setFrameReceiveCallback(frameReceiveCallback callback) {
-  curCallback = callback;
+  atomicCurCallback.store(callback);
   return 0;
 }

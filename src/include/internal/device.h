@@ -2,6 +2,7 @@
 #define INTERNAL_DEVICE_H
 
 #include <thread>
+#include <shared_mutex>
 
 #include <netinet/ether.h>
 
@@ -11,11 +12,12 @@ namespace netstack_internal {
 
 struct Device {
   char *name;
-  ether_addr eth_addr;
+  ether_addr ethAddr;
   pcap_t *handle;
   std::thread *recvThread;
 };
 
+extern std::shared_timed_mutex mutexDevices;
 extern int nDevices, nDevicesReserved;
 extern Device *devices;
 
