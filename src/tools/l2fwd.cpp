@@ -21,8 +21,16 @@ int recvHandler(const void *buf, int len, int id) {
   uint16_t *ethtypeNetp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);
   int ethtype = ntohs(*ethtypeNetp);
   for (int i = 0; i < nDevices; i++)
-    if (ID[i] != id)
-      sendFrame((char *)buf + ETHER_HDR_LEN, len - ETHER_HDR_LEN, ethtype, &dstAddrs[i], ID[i]);
+    if (ID[i] != id) {
+      char srcStr[30], dstStr[30], fwdStr[30];
+      ether_ntoa_r((ether_addr *)buf, dstStr);
+      ether_ntoa_r((ether_addr *)((char *)buf + ETHER_ADDR_LEN), srcStr);
+      ether_ntoa_r(&dstAddrs[i], fwdStr);
+      printf("Recv: length %d, ethtype 0x%x, src %s, dst %s (%d-%d) fwd %s\n",
+        len, ethtype, srcStr, dstStr, id, ID[i], fwdStr);
+      if (sendFrame((char *)buf + ETHER_HDR_LEN, len - ETHER_HDR_LEN, ethtype, &dstAddrs[i], ID[i]) != 0)
+        fprintf(stderr, "error sending frame.\n");
+    }
   return 0;
 }
 

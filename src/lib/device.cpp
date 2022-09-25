@@ -57,7 +57,8 @@ int addDevice(const char *device) {
   if (!handle ||
       // pcap_set_timeout(handle, BUFFER_TIMEOUT) != 0 ||
       pcap_set_immediate_mode(handle, 1) != 0 ||
-      pcap_activate(handle) != 0) {
+      pcap_activate(handle) != 0 || 
+      pcap_setdirection(handle, PCAP_D_IN) != 0) {
     if (handle)
       pcap_close(handle);
     return -1;
