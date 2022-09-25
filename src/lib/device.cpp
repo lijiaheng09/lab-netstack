@@ -2,6 +2,8 @@
 #include <cstring>
 #include <new>
 
+#include <linux/if_packet.h>
+
 #include <pcap/pcap.h>
 
 #include "device.h"
@@ -13,13 +15,14 @@ namespace netstack_internal {
 int nDevices = 0, nDevicesReserved = 0;
 Device *devices = nullptr;
 
-Device::Device(const char *name_, pcap_t *handle_) : handle(handle_) {
-  name = new char[strlen(name_) + 1];
+Device::Device(const char *name_, ether_addr eth_addr_, pcap_t *handle_)
+    : eth_addr(eth_addr_), handle(handle_) {
+  name = (char *)malloc(strlen(name_) + 1);
   strcpy(name, name_);
 }
 
 Device::~Device() {
-  delete[] name;
+  free(name);
 }
 
 } // namespace netstack_internal
@@ -35,14 +38,37 @@ int addDevice(const char *device) {
   if (findDevice(device) != -1)
     return -1; // duplicated device
 
+  bool found = false;
+  ether_addr addr;
+  pcap_if_t *alldevs;
+  if (pcap_findalldevs(&alldevs, errbuf) != 0)
+    return -1;
+  for (auto *p = alldevs; p; p = p->next)
+    if (strcmp(p->name, device) == 0) {
+      for (auto *a = p->addresses; a; a = a->next)
+        if (a->addr && a->addr->sa_family == AF_PACKET) {
+          sockaddr_ll *s = (sockaddr_ll *)a->addr;
+          if (s->sll_hatype == ARPHRD_ETHER) {
+            memcpy(&addr, s->sll_addr, sizeof(addr));
+            found = true;
+            break;
+          }
+        }
+      if (found)
+        break;
+    }
+  pcap_freealldevs(alldevs);
+  
+  if (!found)
+    return -1;
+
   pcap_t *handle = pcap_create(device, errbuf);
-  if (handle == nullptr ||
-      pcap_activate(handle)) {
+  if (handle == nullptr || pcap_activate(handle)) {
     if (handle)
       pcap_close(handle);
     return -1;
   }
-  
+
   if (nDevices >= nDevicesReserved) {
     if (nDevicesReserved == 0)
       nDevicesReserved = 1;
@@ -55,8 +81,7 @@ int addDevice(const char *device) {
     }
   }
 
-  new(&devices[nDevices++]) Device(device, handle);
-
+  new (&devices[nDevices++]) Device(device, addr, handle);
   return nDevices - 1;
 }
 
