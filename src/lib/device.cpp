@@ -1,4 +1,6 @@
+#include <cstdlib>
 #include <cstring>
+#include <new>
 
 #include <pcap/pcap.h>
 
@@ -8,15 +10,12 @@
 
 namespace netstack_internal {
 
-int Device::num = 0;
+int nDevices = 0, nDevicesReserved = 0;
 Device *devices = nullptr;
 
-Device::Device(const char *name_, pcap_t *handle_, Device *next_) {
-  id = num++;
+Device::Device(const char *name_, pcap_t *handle_) : handle(handle_) {
   name = new char[strlen(name_) + 1];
   strcpy(name, name_);
-  handle = handle_;
-  next = next_;
 }
 
 Device::~Device() {
@@ -38,17 +37,32 @@ int addDevice(const char *device) {
 
   pcap_t *handle = pcap_create(device, errbuf);
   if (handle == nullptr ||
-      pcap_set_timeout(handle, BUFFER_TIMEOUT) ||
-      pcap_activate(handle))
+      pcap_activate(handle)) {
+    if (handle)
+      pcap_close(handle);
     return -1;
+  }
+  
+  if (nDevices >= nDevicesReserved) {
+    if (nDevicesReserved == 0)
+      nDevicesReserved = 1;
+    else
+      nDevicesReserved *= 2;
+    devices = (Device *)realloc(devices, sizeof(Device) * nDevicesReserved);
+    if (!devices) {
+      pcap_close(handle);
+      return -1;
+    }
+  }
 
-  devices = new Device(device, handle, devices);
-  return devices->id;
+  new(&devices[nDevices++]) Device(device, handle);
+
+  return nDevices - 1;
 }
 
 int findDevice(const char *device) {
-  for (Device *p = devices; p; p = p->next)
-    if (strcmp(p->name, device) == 0)
-      return p->id;
+  for (int i = 0; i < nDevices; i++)
+    if (strcmp(devices[i].name, device) == 0)
+      return i;
   return -1;
 }
