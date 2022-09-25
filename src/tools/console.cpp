@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
 
 #include <netinet/ether.h>
 #include <linux/if_packet.h>
@@ -147,23 +148,62 @@ int parseLine(char *line, int &argc, char **argv) {
   return 0;
 }
 
-int main() {
+int main(int argc, char **argv) {
   constexpr int MAX_LINE = 1000;
   char line[MAX_LINE];
-  char *argv[MAX_LINE];
+  char *iargv[MAX_LINE];
 
   if (netstackInit() != 0) {
     fprintf(stderr, "initialization error\n");
     return 1;
   }
 
+  bool fileFromArg = false;
+  FILE *fp = nullptr;
+  if (argc >= 2) {
+    fp = fopen(argv[1], "r");
+    if (!fp) {
+      fprintf(stderr, "error open file\n");
+    } else {
+      fileFromArg = true;
+    }
+  }
+
   while (true) {
     printf("> ");
     fflush(stdout);
-    if (!fgets(line, MAX_LINE, stdin)) {
-      printf("exit\n");
-      return 0;
+
+    bool fromFile = false;
+    if (fp) {
+      if (!fgets(line, MAX_LINE, fp)) {
+        fclose(fp);
+        fp = nullptr;
+        if (fileFromArg) {
+          printf("exit\n");
+          return 0;
+        }
+      } else {
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(1000ms);
+        for (char *p = line; *p && *p != '\n'; p++) {
+          putchar(*p);
+          fflush(stdout);
+        std::this_thread::sleep_for(10ms);
+        }
+        std::this_thread::sleep_for(1000ms);
+        putchar('\n');
+        fflush(stdout);
+        fromFile = true;
+      }
     }
+
+    if (!fromFile) {
+      if (!fgets(line, MAX_LINE, stdin)) {
+        printf("exit\n");
+        return 0;
+      }
+    }
+
     if (line[0] == '\n')
       continue;
     if (line[strlen(line) - 1] != '\n') {
@@ -174,17 +214,31 @@ int main() {
       system(line + 1);
       continue;
     }
-    int argc;
-    if (parseLine(line, argc, argv))
+    int iargc;
+    if (parseLine(line, iargc, iargv))
       return 1;
+    
+    if (strcmp(iargv[0], "source") == 0) {
+      if (iargc != 2) {
+        fprintf(stderr, "usage: source <file>\n");
+        continue;
+      }
+      fp = fopen(iargv[1], "r");
+      if (!fp) {
+        fprintf(stderr, "error open file\n");
+        continue;
+      }
+      continue;
+    }
+
     CommandHandler handler = nullptr;
     for (auto &&c : commandList)
-      if (strcmp(c.name, argv[0]) == 0)
+      if (strcmp(c.name, iargv[0]) == 0)
         handler = c.handler;
     if (handler == nullptr)
       fprintf(stderr, "command not found\n");
     else
-      handler(argc, argv);
+      handler(iargc, iargv);
   }
   return 0;
 }
