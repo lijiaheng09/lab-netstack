@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include <pcap/pcap.h>
@@ -69,10 +70,8 @@ int parseLine(char *line, int &argc, char **argv) {
     *p++ = '\0';
     argv[argc++] = p;
   }
-  if (!(p = strchr(argv[argc - 1], '\n'))) {
-    fprintf(stderr, "too long line\n");
+  if (!(p = strchr(argv[argc - 1], '\n')))
     return 1;
-  }
   *p = '\0';
   return 0;
 }
@@ -96,6 +95,14 @@ int main() {
     }
     if (line[0] == '\n')
       continue;
+    if (line[strlen(line) - 1] != '\n') {
+      fprintf(stderr, "too long line\n");
+      return 1;
+    }
+    if (line[0] == '!') {
+      system(line + 1);
+      continue;
+    }
     int argc;
     if (parseLine(line, argc, argv))
       return 1;
