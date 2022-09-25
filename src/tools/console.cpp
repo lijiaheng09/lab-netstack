@@ -2,6 +2,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <linux/if_packet.h>
+#include <linux/if_arp.h>
+
 #include <pcap/pcap.h>
 
 #include "netstack.h"
@@ -13,8 +16,19 @@ int findAllDevs(int argc, char **argv) {
   pcap_if_t *devices;
   if (pcap_findalldevs(&devices, errbuf) != 0)
     fprintf(stderr, "error\n");
-  for (auto *p = devices; p; p = p->next)
+  for (auto *p = devices; p; p = p->next) {
     printf("device %s: %s\n", p->name, p->description);
+    for (auto *a = p->addresses; a; a = a->next) {
+      if (a->addr->sa_family == AF_PACKET) {
+        struct sockaddr_ll *s = (struct sockaddr_ll*)a->addr;
+        if (s->sll_hatype == ARPHRD_ETHER) {
+          printf("    ether ");
+          for (int i = 0; i < s->sll_halen; i++)
+            printf("%02X%c", s->sll_addr[i], i + 1 < s->sll_halen ? ':' : '\n');
+        }
+      }
+    }
+  }
   pcap_freealldevs(devices);
   return 0;
 }
