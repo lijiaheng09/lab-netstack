@@ -48,12 +48,14 @@ int addDevice(const char *device) {
         break;
     }
   pcap_freealldevs(alldevs);
-  
+
   if (!found)
     return -1;
 
   pcap_t *handle = pcap_create(device, errbuf);
-  if (handle == nullptr || pcap_activate(handle)) {
+  if (!handle ||
+      pcap_set_timeout(handle, BUFFER_TIMEOUT) != 0 ||
+      pcap_activate(handle) != 0) {
     if (handle)
       pcap_close(handle);
     return -1;
@@ -78,13 +80,17 @@ int addDevice(const char *device) {
   }
   strcpy(nameCopy, device);
 
+  int id = nDevices;
+
   devices[nDevices++] = {
     name: nameCopy,
     eth_addr: addr,
-    handle: handle
+    handle: handle,
+    recvThread: new std::thread(deviceRecvAction, handle, id)
   };
+  devices[id].recvThread->detach();
 
-  return nDevices - 1;
+  return id;
 }
 
 int findDevice(const char *device) {

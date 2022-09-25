@@ -14,7 +14,7 @@ int sendFrame(const void *buf, int len, int ethtype, const void *destmac,
   if (id >= nDevices)
     return -1; // invalid device id
 
-  int frameLen = ETHER_HDR_LEN + len;  
+  int frameLen = ETHER_HDR_LEN + len;
   if (len < 0 || frameLen + ETHER_CRC_LEN > ETHER_MAX_LEN)
     return -1;
 
@@ -24,7 +24,7 @@ int sendFrame(const void *buf, int len, int ethtype, const void *destmac,
   u_char *frame = (u_char *)malloc(frameLen);
   if (!frame)
     return -1;
-  
+
   uint16_t ethtype_net = htons((uint16_t)ethtype);
 
   memcpy(frame, destmac, ETHER_ADDR_LEN);
@@ -40,7 +40,24 @@ int sendFrame(const void *buf, int len, int ethtype, const void *destmac,
   return 0;
 }
 
+static frameReceiveCallback curCallback;
+
+namespace netstack_internal {
+
+void deviceRecvAction(pcap_t *handle, int id) {
+  pcap_pkthdr hdr;
+  while (auto *frame = pcap_next(handle, &hdr)) {
+    if (curCallback) {
+      int ret = curCallback(frame, hdr.caplen, id);
+      if (ret != 0)
+        break;
+    }
+  }
+}
+
+} // namespace netstack_internal
 
 int setFrameReceiveCallback(frameReceiveCallback callback) {
-  return -1;
+  curCallback = callback;
+  return 0;
 }

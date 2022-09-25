@@ -67,10 +67,10 @@ int sendFrame(int argc, char **argv) {
   if (argc < 5 ||
       sscanf(argv[1], "%d", &id) != 1 ||
       !ether_aton_r(argv[2], &destmac) ||
-      sscanf(argv[3], "%d", &ethtype) != 1 ||
+      sscanf(argv[3], "0x%x", &ethtype) != 1 ||
       (argc == 6 && sscanf(argv[5], "%d", &padding) != 1) ||
       argc > 6) {
-    fprintf(stderr, "usage: sendFrame <id> <destmac> <ethtype> <data> [padding]\n");
+    fprintf(stderr, "usage: sendFrame <id> <destmac> <ethtype-hex> <data> [padding]\n");
     return 1;
   }
 
@@ -94,6 +94,28 @@ int sendFrame(int argc, char **argv) {
   return 0;
 }
 
+int captureRecvCallback(const void *buf, int len, int id) {
+  ether_addr *dst = (ether_addr *)buf;
+  ether_addr *src = dst + 1;
+  uint16_t *ethtype_netp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);
+  int ethtype = ntohs(*ethtype_netp);
+  printf("Recv length %d from device %d\n", len, id);
+  char dstStr[30], srcStr[30];
+  ether_ntoa_r(dst, dstStr);
+  ether_ntoa_r(src, srcStr);
+  printf("    dst %s, src %s, ethtype %02x\n", dstStr, srcStr, ethtype);
+  return 0;
+}
+
+int setCapture(int argc, char **argv) {
+  int ret = ::setFrameReceiveCallback(captureRecvCallback);
+  if (ret != 0) {
+    fprintf(stderr, "error\n");
+    return 1;
+  }
+  return 0;
+}
+
 } // namespace commands
 
 typedef int (*command_handler)(int argc, char **argv);
@@ -107,7 +129,8 @@ command_t commandList[] = {
   {"findAllDevs", commands::findAllDevs},
   {"addDevice", commands::addDevice},
   {"findDevice", commands::findDevice},
-  {"sendFrame", commands::sendFrame}
+  {"sendFrame", commands::sendFrame},
+  {"setCapture", commands::setCapture}
 };
 
 int parseLine(char *line, int &argc, char **argv) {
