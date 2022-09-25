@@ -21,7 +21,7 @@ Device *devices = nullptr;
 using namespace netstack_internal;
 
 // see pcap_set_timeout
-static constexpr int BUFFER_TIMEOUT = 1000;
+// static constexpr int BUFFER_TIMEOUT = 1000;
 
 int addDevice(const char *device) {
   char errbuf[PCAP_ERRBUF_SIZE];
@@ -55,7 +55,8 @@ int addDevice(const char *device) {
 
   pcap_t *handle = pcap_create(device, errbuf);
   if (!handle ||
-      pcap_set_timeout(handle, BUFFER_TIMEOUT) != 0 ||
+      // pcap_set_timeout(handle, BUFFER_TIMEOUT) != 0 ||
+      pcap_set_immediate_mode(handle, 1) != 0 ||
       pcap_activate(handle) != 0) {
     if (handle)
       pcap_close(handle);

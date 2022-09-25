@@ -97,8 +97,8 @@ int sendFrame(int argc, char **argv) {
 int captureRecvCallback(const void *buf, int len, int id) {
   ether_addr *dst = (ether_addr *)buf;
   ether_addr *src = dst + 1;
-  uint16_t *ethtype_netp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);
-  int ethtype = ntohs(*ethtype_netp);
+  uint16_t *ethtypeNetp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);
+  int ethtype = ntohs(*ethtypeNetp);
   printf("Recv length %d from device %d\n", len, id);
   char dstStr[30], srcStr[30];
   ether_ntoa_r(dst, dstStr);
@@ -118,14 +118,14 @@ int setCapture(int argc, char **argv) {
 
 } // namespace commands
 
-typedef int (*command_handler)(int argc, char **argv);
+typedef int (*CommandHandler)(int argc, char **argv);
 
-struct command_t {
+struct Command {
   const char *name;
-  command_handler handler;
+  CommandHandler handler;
 };
 
-command_t commandList[] = {
+Command commandList[] = {
   {"findAllDevs", commands::findAllDevs},
   {"addDevice", commands::addDevice},
   {"findDevice", commands::findDevice},
@@ -177,7 +177,7 @@ int main() {
     int argc;
     if (parseLine(line, argc, argv))
       return 1;
-    command_handler handler = nullptr;
+    CommandHandler handler = nullptr;
     for (auto &&c : commandList)
       if (strcmp(c.name, argv[0]) == 0)
         handler = c.handler;
