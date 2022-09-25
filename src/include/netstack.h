@@ -7,6 +7,7 @@
 #define LAB_NETSTACK_NETSTACK_H
 
 #include "device.h"
+#include "packetio.h"
 
 #ifdef __cplusplus
 extern "C" {

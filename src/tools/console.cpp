@@ -2,8 +2,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <netinet/ether.h>
 #include <linux/if_packet.h>
-#include <linux/if_arp.h>
 
 #include <pcap/pcap.h>
 
@@ -61,6 +61,39 @@ int findDevice(int argc, char **argv) {
   return 0;
 }
 
+int sendFrame(int argc, char **argv) {
+  int id, ethtype, padding = 0;
+  ether_addr destmac;
+  if (argc < 5 ||
+      sscanf(argv[1], "%d", &id) != 1 ||
+      !ether_aton_r(argv[2], &destmac) ||
+      sscanf(argv[3], "%d", &ethtype) != 1 ||
+      (argc == 6 && sscanf(argv[5], "%d", &padding) != 1) ||
+      argc > 6) {
+    fprintf(stderr, "usage: sendFrame <id> <destmac> <ethtype> <data> [padding]\n");
+    return 1;
+  }
+
+  int rLen = strlen(argv[4]);
+  int len = rLen + padding;
+  char *data = (char *)malloc(len);
+  if (!data) {
+    fprintf(stderr, "error\n");
+    return 1;
+  }
+  memcpy(data, argv[4], rLen);
+  memset(data + rLen, 0, padding);
+
+  int ret = ::sendFrame(data, len, ethtype, &destmac, id);
+  free(data);
+  
+  if (ret != 0) {
+    fprintf(stderr, "error\n");
+    return 1;
+  }
+  return 0;
+}
+
 } // namespace commands
 
 typedef int (*command_handler)(int argc, char **argv);
@@ -73,7 +106,8 @@ struct command_t {
 command_t commandList[] = {
   {"findAllDevs", commands::findAllDevs},
   {"addDevice", commands::addDevice},
-  {"findDevice", commands::findDevice}
+  {"findDevice", commands::findDevice},
+  {"sendFrame", commands::sendFrame}
 };
 
 int parseLine(char *line, int &argc, char **argv) {
