@@ -44,15 +44,23 @@ static frameReceiveCallback curCallback;
 
 namespace netstack_internal {
 
-void deviceRecvAction(pcap_t *handle, int id) {
-  pcap_pkthdr hdr;
-  while (auto *frame = pcap_next(handle, &hdr)) {
-    if (curCallback) {
-      int ret = curCallback(frame, hdr.caplen, id);
-      if (ret != 0)
-        break;
-    }
+struct DeviceRecvActionArgs {
+  pcap_t *handle;
+  int id;
+};
+
+void devicePcapLoopHandler(u_char *user, const pcap_pkthdr *h, const u_char *bytes) {
+  DeviceRecvActionArgs args = *(DeviceRecvActionArgs *)user;
+  if (curCallback) {
+    if (curCallback(bytes, h->caplen, args.id))
+      pcap_breakloop(args.handle);
   }
+}
+
+void deviceRecvAction(pcap_t *handle, int id) {
+  DeviceRecvActionArgs args { handle, id };
+  pcap_pkthdr hdr;
+  pcap_loop(handle, -1, devicePcapLoopHandler, (u_char *)&args);
 }
 
 } // namespace netstack_internal
