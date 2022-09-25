@@ -33,7 +33,7 @@ int sendFrame(const void *buf, int len, int ethtype, const void *destmac,
  * @return 0 on success, -1 on error.
  * @see addDevice
  */
-typedef int (*frameReceiveCallback)(const void *, int, int);
+typedef int (*frameReceiveCallback)(const void *buf, int len, int id);
 
 /**
  * @brief Register a callback function to be called each time an Ethernet II
