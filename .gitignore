@@ -1,3 +1,6 @@
 .vscode/
 
 build/
+
+handin_suf.txt
+lab*.tar
