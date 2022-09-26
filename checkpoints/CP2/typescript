@@ -1,0 +1,49 @@
+Script started on 2022-09-26 04:24:18-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="141" LINES="34"]
++++ pwd
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP2
+++ cd ../../utils/vnetUtils/examples/
+++ sudo ./makeVNet
+++ cd ../helper/
++++ sudo ./execNS ns0 ifconfig
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth0-3
+++ veth0_3=7a:dc:34:98:f4:43
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth1-2
++++ sudo ./execNS ns1 ifconfig
+++ veth1_2=ea:e6:b2:18:3f:6a
++++ sudo ./execNS ns2 ifconfig
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth2-1
+++ veth2_1=b6:a1:51:8f:46:e8
++++ sudo ./execNS ns2 ifconfig
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth2-3
+++ veth2_3=d6:bb:1c:36:1d:90
++++ sudo ./execNS ns3 ifconfig
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth3-0
+++ veth3_0=be:62:ca:1c:3e:38
++++ sudo ./execNS ns3 ifconfig
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth3-2
+++ veth3_2=ce:0a:b3:c0:74:3a
++++ sudo ./execNS ns3 ifconfig
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth3-4
+++ veth3_4=5a:e9:50:ee:05:5f
++++ sudo ./execNS ns4 ifconfig
++++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth4-3
+++ veth4_3=7e:2d:bf:74:1a:fc
+++ sudo ./execNS ns3 ../../../build/tools/eth_test veth3-0 7a:dc:34:98:f4:43 veth3-2 d6:bb:1c:36:1d:90 veth3-4 7e:2d:bf:74:1a:fc
+++ wait
+++ sudo ./execNS ns1 ../../../build/tools/eth_test veth1-2 b6:a1:51:8f:46:e8
+++ sudo ./execNS ns2 ../../../build/tools/eth_test veth2-1 ea:e6:b2:18:3f:6a veth2-3 ce:0a:b3:c0:74:3a
+++ sudo ./execNS ns4 ../../../build/tools/eth_test veth4-3 5a:e9:50:ee:05:5f
+++ sudo ./execNS ns0 ../../../build/tools/eth_test veth0-3 be:62:ca:1c:3e:38
+device 0: veth1-2, sent F3FBCE1081632E7C, recv B88C78F00EA0C996
+device 0: veth0-3, sent 2B0A1528F0CC0B21, recv 73C2F22C84E2335F
+device 0: veth2-1, sent B88C78F00EA0C996, recv F3FBCE1081632E7C
+device 1: veth2-3, sent 6158F4FB43E8DF8C, recv 24353E0F843DF55E
+device 0: veth3-0, sent 73C2F22C84E2335F, recv 2B0A1528F0CC0B21
+device 1: veth3-2, sent 24353E0F843DF55E, recv 6158F4FB43E8DF8C
+device 2: veth3-4, sent 4E9B159F07BD961C, recv 99BF7DDE54FAAC16
+device 0: veth4-3, sent 99BF7DDE54FAAC16, recv 4E9B159F07BD961C
+++ cd ../examples/
+++ sudo ./removeVNet
+++ exit
+
+Script done on 2022-09-26 04:24:34-07:00 [COMMAND_EXIT_CODE="0"]

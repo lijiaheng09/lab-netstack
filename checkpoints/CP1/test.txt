@@ -1,0 +1,12 @@
+!ifconfig
+findAllDevs
+findDevice veth3-0
+addDevice veth3-0
+findDevice veth3-0
+addDevice veth-err
+addDevice veth3-2
+addDevice veth3-1
+findDevice veth3-0
+findDevice veth3-2
+findDevice veth3-4
+addDevice veth3-4

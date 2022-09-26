@@ -93,10 +93,11 @@ void sendThreadAction(int i, int seed) {
   sendFrame(HELLO_DATA, HELLO_LEN, ETH_TYPE_EXP2, &dstAddr[i], i);
   fprintf(stderr, "device %d sending HELLO\n", i);
 
-  static constexpr auto SENDING_CYCLE = 0.5ms;
+  static constexpr int SENDING_BATCH = 30;
+  static constexpr auto SENDING_CYCLE = 30ms;
 
   std::mt19937 rnd(seed);
-  for (int t = 0; t < TIMES; t++) {
+  for (int t = 1; t <= TIMES; t++) {
     LongNum x = randLongNum(rnd);
     if (sendFrame(x.v, LEN, ETH_TYPE_EXP1, &dstAddr[i], i) != 0) {
       fprintf(stderr, "Sending error %d:%d\n", i, t);
@@ -106,7 +107,8 @@ void sendThreadAction(int i, int seed) {
     if (t % LOG_TIMES == 0) {
       fprintf(stderr, "device %d sent %d/%d\n", i, t, TIMES);
     }
-    std::this_thread::sleep_for(SENDING_CYCLE);
+    if (t % SENDING_BATCH == 0)
+      std::this_thread::sleep_for(SENDING_CYCLE);
   }
 }
 
