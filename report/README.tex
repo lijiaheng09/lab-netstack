@@ -1,0 +1,72 @@
+\documentclass[a4paper]{article}
+
+\usepackage{geometry}
+\usepackage{indentfirst}
+
+\geometry{scale=0.8}
+
+\title{PKU-CompNet (H) Fall'22 \\ Lab Assignment (Premium): Protocol Stack \\ Report}
+\author{Jiaheng Li (2000013054)}
+
+\begin{document}
+  \maketitle
+
+  \section{Lab 1: Link-layer}
+
+  \subsection{Writing Task 1 (WT1)}
+
+  The third frame in the results is:
+  \begin{table}[!ht]
+    \centering
+    \fontsize{8pt}{8pt}
+    \ttfamily
+    \begin{tabular}{lllllll}
+      No. & Time & Source & Destination & Protocol & Length & Info \\
+      12 & 1.068164 & 0.0.0.0 & 255.255.255.255 & DHCP & 342 & DHCP Discover - Transaction ID 0x13699715
+    \end{tabular}
+  \end{table}
+
+  \begin{enumerate}
+    \item There are 827 frames in the filtered result. (\texttt{Dislayed: 827})
+    \item The destination address of the Ethernet frame is \texttt{ff:ff:ff:ff:ff:ff}, which is the broadcast address.
+    \item The 71st byte is \texttt{0x15}.
+  \end{enumerate}
+
+  \subsection{Programming Task 1 (PT1)}
+
+  The required functions are implemented in \texttt{src/lib/device.c}, which maintains a linear structure of \texttt{Device} objects declared in \texttt{src/include/internal/device.h}, containing basic information of the devices and their runtime handlers for management.
+
+  \subsection{Programming Task 2 (PT2)}
+
+  The required functions are implemented in \texttt{src/lib/packetio.c}.
+
+  For a \texttt{sendFrame()} call, it simply get information from the \texttt{devices} structure, allocate space to put each element of an Ethernet II frame in order, and then call \texttt{pcap\_sendpacket()} to send it out.
+
+  For \texttt{setFrameReceiveCallback()}, it simply modifies the global pointer to the callback.
+
+  To receive frames, a thread is created in each successful \texttt{addDevice()}, continously running \texttt{pcap\_loop()} to call the receiving callback for that device.
+
+  The global data about devices and the callback are protected through atomic variables or mutexes.
+
+  \subsection{Checkpoint 1 (CP1)}
+  
+  The typescript record is at \texttt{checkpoints/CP1/\{typescript, timing.log\}}.
+
+  For convenient testing, a \texttt{console} tool is implemented in \texttt{src/tools/console.c} and will be built to \texttt{build/tools/console}, which enables us to call the functions above interactively.
+
+  In the script, several calls to \texttt{addDevice()} and \texttt{findDevice()} in a row shows that they can correctly add (only) the valid Ethernet devices on the host and correctly find the added devices.
+
+  \subsection{Checkpoint 2 (CP2)}
+
+  The typescript record is at \texttt{checkpoints/CP2/\{typescript, timing.log\}}.
+
+  A testing tools is implemented in \texttt{src/tools/eth\_test.c}.
+  It receives several devices and their destination address (the MAC address on their other sides) as arguments.
+  It sends $10000$ random raw Ethernet frames through each device (in a new thread for each device), and receives the frames from the other side at the same time.
+  (To prevent losses, it will delay for a short time after each batch of frames.)
+  In the end, it will print a checksum of frames it sends, and another of frames it receives.
+
+  In the script, the \texttt{eth\_test} tool above is simultaneously run on each of the 5 hosts in the example network provided in \texttt{vnetUtils}, using all of the 8 devices and 4 links among them.
+  After the run, we can see that the sending and receiving checksum of each link matches, which shows the (basic) correctness of our sending and receiving implementation.
+
+\end{document}
