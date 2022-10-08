@@ -1,11 +1,11 @@
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-find_package(Threads)
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DNETSTACK_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DNETSTACK_DEBUG")
 
 add_library(lab-netstack
-  netstack.cpp
-  device.cpp
-  packetio.cpp
+  NetStack.cpp
+  Ethernet.cpp
 )
 
-target_link_libraries(lab-netstack PRIVATE pcap ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(lab-netstack PRIVATE pcap)

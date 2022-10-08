@@ -3,12 +3,16 @@
 #include <cstring>
 #include <thread>
 
+#include <pcap/pcap.h>
+
 #include <netinet/ether.h>
 #include <linux/if_packet.h>
 
-#include <pcap/pcap.h>
+#include "NetStack.h"
+#include "Ethernet.h"
 
-#include "netstack.h"
+NetStack netstack;
+Ethernet ethernetLayer(netstack);
 
 namespace commands {
 
@@ -39,7 +43,7 @@ int addDevice(int argc, char **argv) {
     fprintf(stderr, "usage: addDevice <device>\n");
     return 1;
   }
-  int id = ::addDevice(argv[1]);
+  int id = ethernetLayer.addDeviceByName(argv[1]);
   if (id == -1) {
     fprintf(stderr, "error\n");
     return 1;
@@ -53,16 +57,20 @@ int findDevice(int argc, char **argv) {
     fprintf(stderr, "usage: findDevice <device>\n");
     return 1;
   }
-  int id = ::findDevice(argv[1]);
-  if (id == -1) {
+  auto *d = ethernetLayer.findDeviceByName(argv[1]);
+  if (!d) {
     printf("device not found\n");
     return 1;
   }
-  printf("device found: %d\n", id);
+  printf("device found: %s\n", d->name);
+  printf("    ether ");
+  for (int i = 0; i < sizeof(d->addr); i++)
+    printf("%02X%c", d->addr.data[i], i + 1 < sizeof(d->addr) ? ':' : '\n');
   return 0;
 }
 
 int sendFrame(int argc, char **argv) {
+  /*
   int id, ethtype, padding = 0;
   ether_addr destmac;
   if (argc < 5 ||
@@ -92,6 +100,7 @@ int sendFrame(int argc, char **argv) {
     fprintf(stderr, "error\n");
     return 1;
   }
+  */
   return 0;
 }
 
@@ -109,11 +118,13 @@ int captureRecvCallback(const void *buf, int len, int id) {
 }
 
 int setCapture(int argc, char **argv) {
+  /*
   int ret = ::setFrameReceiveCallback(captureRecvCallback);
   if (ret != 0) {
     fprintf(stderr, "error\n");
     return 1;
   }
+  */
   return 0;
 }
 
@@ -153,7 +164,7 @@ int main(int argc, char **argv) {
   char line[MAX_LINE];
   char *iargv[MAX_LINE];
 
-  if (netstackInit() != 0) {
+  if (netstack.setup() != 0) {
     fprintf(stderr, "initialization error\n");
     return 1;
   }
