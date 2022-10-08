@@ -1,6 +1,8 @@
 #ifndef NETSTACK_ETHERNET_H
 #define NETSTACK_ETHERNET_H
 
+#include <cinttypes>
+
 #include "utils.h"
 #include "NetStack.h"
 
@@ -10,6 +12,12 @@ public:
 
   struct Addr {
     unsigned char data[6];
+  };
+
+  struct Header {
+    Addr dst;
+    Addr src;
+    uint16_t etherType;
   };
 
   NetStack &stack;
@@ -37,9 +45,9 @@ public:
    * @brief Add an Ethernet device to the netstack.
    * 
    * @param name Name of the device.
-   * @return Non-negative ID of the added device, negative on error.
+   * @return Pointer to the added `Ethernet::Device` object, nullptr on error.
    */
-  int addDeviceByName(const char *name);
+  Device *addDeviceByName(const char *name);
 
   /**
    * @brief Find an added Ethernet device ID by its name.
@@ -86,7 +94,7 @@ public:
   int setup();
 
 private:
-  class NetStackHandler : NetStack::RecvCallback {
+  class NetStackHandler : public NetStack::RecvCallback {
     Ethernet &ethernetLayer;
   public:
     NetStackHandler(Ethernet &ethernetLayer_);

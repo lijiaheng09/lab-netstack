@@ -1,4 +1,6 @@
 #include <cstring>
+#include <cstdlib>
+#include <cerrno>
 
 #include <pcap/pcap.h>
 
@@ -13,12 +15,38 @@ constexpr int Ethernet::LINK_TYPE = DLT_EN10MB;
 Ethernet::Ethernet(NetStack &stack_) : stack(stack_), netstackHandler(*this) {}
 
 Ethernet::Device::Device(pcap_t *p_, const char *name_, const Addr &addr_)
-    : NetStack::Device(p_, name_, Ethernet::LINK_TYPE), addr(addr_) {}
+    : NetStack::Device(p_, name_, LINK_TYPE), addr(addr_) {}
 
-int Ethernet::addDeviceByName(const char *name) {
+int Ethernet::Device::sendFrame(void *buf, int len, const Addr &dst, int etherType) {
+  int frameLen = sizeof(Header) + len;
+
+  if ((etherType >> 16) != 0) {
+    ERRLOG("Invalid etherType: %d\n", etherType);
+    return -1;
+  }
+
+  void *frame = malloc(frameLen);
+  if (!frame) {
+    ERRLOG("malloc error: %s\n", strerror(errno));
+    return -1;
+  }
+  
+  *(Header *)frame = Header {
+    dst: dst,
+    src: addr,
+    etherType: htons(etherType)
+  };
+  memcpy((unsigned char *)frame + sizeof(Header), buf, len);
+
+  int rc = NetStack::Device::sendFrame(frame, frameLen);
+  free(frame);
+  return rc;
+}
+
+Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
   if (stack.findDeviceByName(name)) {
     ERRLOG("Duplicated device: %s\n", name);
-    return -1;
+    return nullptr;
   }
 
   int rc;
@@ -30,7 +58,7 @@ int Ethernet::addDeviceByName(const char *name) {
   rc = pcap_findalldevs(&alldevs, errbuf);
   if (rc != 0) {
     ERRLOG("pcap_findalldevs error: %s\n", errbuf);
-    return rc;
+    return nullptr;
   }
   for (auto *d = alldevs; d; d = d->next)
     if (strcmp(d->name, name) == 0) {
@@ -50,30 +78,67 @@ int Ethernet::addDeviceByName(const char *name) {
 
   if (!found) {
     ERRLOG("Device not found: %s\n", name);
-    return -1;
+    return nullptr;
   }
 
   pcap_t *p = pcap_create(name, errbuf);
   if (!p) {
     ERRLOG("pcap_create (device %s) error: %s\n", name, errbuf);
-    return -1;
+    return nullptr;
   }
   rc = pcap_set_immediate_mode(p, 1);
   if (rc != 0) {
     ERRLOG("pcap_set_immediate (device %s) error: %s\n", name, pcap_geterr(p));
     pcap_close(p);
-    return -1;
+    return nullptr;
   }
-  return stack.addDevice(new Device(p, name, addr));
+  rc = pcap_activate(p);
+  if (rc != 0) {
+    ERRLOG("pcap_activate (device %s) error: %s\n", name, pcap_geterr(p));
+    return nullptr;
+  }
+  auto *d = new Device(p, name, addr);
+  stack.addDevice(d);
+  return d;
 }
 
 Ethernet::Device *Ethernet::findDeviceByName(const char *name) {
   return dynamic_cast<Device *>(stack.findDeviceByName(name));
 }
 
+Ethernet::RecvCallback::RecvCallback(int etherType_) : etherType(etherType_) {}
+
+void Ethernet::addRecvCallback(RecvCallback *callback) {
+  callbacks.push_back(callback);
+}
+
+int Ethernet::handleFrame(const void *buf, int len, Device *device) {
+  if (len < sizeof(Header)) {
+    ERRLOG("Truncated header (device %s): %d/%d\n", device->name, len, (int)sizeof(Header));
+    return -1;
+  }
+  const Header &h = *(const Header *)buf;
+  int etherType = ntohs(h.etherType);
+  int rc = 0;
+  for (auto *c : callbacks)
+    if (c->etherType == -1 || c->etherType == h.etherType)
+      if (c->handle(buf, len, device) != 0)
+        rc = -1;
+  return rc;
+}
+
+int Ethernet::setup() {
+  stack.addRecvCallback(&netstackHandler);
+  return 0;
+}
+
 Ethernet::NetStackHandler::NetStackHandler(Ethernet &ethernetLayer_)
     : NetStack::RecvCallback(LINK_TYPE), ethernetLayer(ethernetLayer_) {}
 
-int Ethernet::NetStackHandler::handle(const void *buf, int len, NetStack::Device *device) {
-  return 0;
+int Ethernet::NetStackHandler::handle(const void *buf, int len,
+                                      NetStack::Device *device) {
+  if (auto *d = dynamic_cast<Device *>(device))
+    return ethernetLayer.handleFrame(buf, len, d);
+  ERRLOG("Invalid device sent to Ethernet layer: device %s\n", device->name);
+  return -1;
 }

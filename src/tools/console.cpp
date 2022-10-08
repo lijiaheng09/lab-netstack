@@ -43,12 +43,15 @@ int addDevice(int argc, char **argv) {
     fprintf(stderr, "usage: addDevice <device>\n");
     return 1;
   }
-  int id = ethernetLayer.addDeviceByName(argv[1]);
-  if (id == -1) {
+  auto *d = ethernetLayer.addDeviceByName(argv[1]);
+  if (!d) {
     fprintf(stderr, "error\n");
     return 1;
   }
-  printf("device added: %d\n", id);
+  printf("device added: %s\n", d->name);
+  printf("    ether ");
+  for (int i = 0; i < sizeof(d->addr); i++)
+    printf("%02X%c", d->addr.data[i], i + 1 < sizeof(d->addr) ? ':' : '\n');
   return 0;
 }
 
@@ -70,16 +73,20 @@ int findDevice(int argc, char **argv) {
 }
 
 int sendFrame(int argc, char **argv) {
-  /*
   int id, ethtype, padding = 0;
-  ether_addr destmac;
+  Ethernet::Addr destmac;
   if (argc < 5 ||
-      sscanf(argv[1], "%d", &id) != 1 ||
-      !ether_aton_r(argv[2], &destmac) ||
+      !ether_aton_r(argv[2], (ether_addr *)&destmac) ||
       sscanf(argv[3], "0x%x", &ethtype) != 1 ||
       (argc == 6 && sscanf(argv[5], "%d", &padding) != 1) ||
       argc > 6) {
-    fprintf(stderr, "usage: sendFrame <id> <destmac> <ethtype-hex> <data> [padding]\n");
+    fprintf(stderr, "usage: sendFrame <device> <destmac> <ethtype-hex> <data> [padding]\n");
+    return 1;
+  }
+
+  auto *d = ethernetLayer.findDeviceByName(argv[1]);
+  if (!d) {
+    fprintf(stderr, "Device not found: %s\n", argv[1]);
     return 1;
   }
 
@@ -93,38 +100,40 @@ int sendFrame(int argc, char **argv) {
   memcpy(data, argv[4], rLen);
   memset(data + rLen, 0, padding);
 
-  int ret = ::sendFrame(data, len, ethtype, &destmac, id);
+  int ret = d->sendFrame(data, len, destmac, ethtype);
   free(data);
   
   if (ret != 0) {
     fprintf(stderr, "error\n");
     return 1;
   }
-  */
   return 0;
 }
 
-int captureRecvCallback(const void *buf, int len, int id) {
-  ether_addr *dst = (ether_addr *)buf;
-  ether_addr *src = dst + 1;
-  uint16_t *ethtypeNetp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);
-  int ethtype = ntohs(*ethtypeNetp);
-  printf("Recv length %d from device %d\n", len, id);
-  char dstStr[30], srcStr[30];
-  ether_ntoa_r(dst, dstStr);
-  ether_ntoa_r(src, srcStr);
-  printf("    dst %s, src %s, ethtype %02x\n", dstStr, srcStr, ethtype);
-  return 0;
-}
+class CaptureRecvCallback : public Ethernet::RecvCallback {
+public:
+  CaptureRecvCallback() : Ethernet::RecvCallback(-1) { }
 
-int setCapture(int argc, char **argv) {
-  /*
-  int ret = ::setFrameReceiveCallback(captureRecvCallback);
-  if (ret != 0) {
-    fprintf(stderr, "error\n");
-    return 1;
+  int handle(const void *buf, int len, Ethernet::Device *d) override {
+    ether_addr *dst = (ether_addr *)buf;
+    ether_addr *src = dst + 1;
+    uint16_t *ethtypeNetp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);
+    int ethtype = ntohs(*ethtypeNetp);
+    printf("Recv length %d from device %s\n", len, d->name);
+    char dstStr[30], srcStr[30];
+    ether_ntoa_r(dst, dstStr);
+    ether_ntoa_r(src, srcStr);
+    printf("    dst %s, src %s, ethtype %02x\n", dstStr, srcStr, ethtype);
+    return 0;
   }
-  */
+} captureRecvCallback;
+
+int startCapture(int argc, char **argv) {
+  ethernetLayer.addRecvCallback(&captureRecvCallback);
+  if (netstack.loop() != 0) {
+    fprintf(stderr, "error.\n");
+    return -1;
+  }
   return 0;
 }
 
@@ -142,7 +151,7 @@ Command commandList[] = {
   {"addDevice", commands::addDevice},
   {"findDevice", commands::findDevice},
   {"sendFrame", commands::sendFrame},
-  {"setCapture", commands::setCapture}
+  {"startCapture", commands::startCapture}
 };
 
 int parseLine(char *line, int &argc, char **argv) {
@@ -165,7 +174,12 @@ int main(int argc, char **argv) {
   char *iargv[MAX_LINE];
 
   if (netstack.setup() != 0) {
-    fprintf(stderr, "initialization error\n");
+    fprintf(stderr, "netstack setup error\n");
+    return 1;
+  }
+
+  if (ethernetLayer.setup() != 0) {
+    fprintf(stderr, "Ethernet Layer setup error\n");
     return 1;
   }
 

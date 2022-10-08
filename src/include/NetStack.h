@@ -12,6 +12,7 @@ public:
     struct pcap *p;
 
   public:
+    int id;
     char *const name;
     const int linkType;
 

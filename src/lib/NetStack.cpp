@@ -6,11 +6,12 @@
 #include "log.h"
 
 NetStack::Device::Device(pcap_t *p_, const char *name_, int linkType_)
-    : p(p_), name(new char[strlen(name_) + 1]), linkType(linkType_) {
+    : p(p_), id(-1), name(new char[strlen(name_) + 1]), linkType(linkType_) {
   strcpy(name, name_);
 }
 
 NetStack::Device::~Device() {
+  pcap_close(p);
   delete[] name;
 }
 
@@ -18,9 +19,10 @@ int NetStack::Device::sendFrame(void *buf, int len) {
   return pcap_sendpacket(p, (u_char *)buf, len);
 }
 
-int NetStack::addDevice(NetStack::Device *device) {
+int NetStack::addDevice(Device *device) {
+  device->id = (int)devices.size();
   devices.push_back(device);
-  return (int)devices.size() - 1;
+  return device->id;
 }
 
 NetStack::Device *NetStack::findDeviceByName(const char *name) {
@@ -32,7 +34,7 @@ NetStack::Device *NetStack::findDeviceByName(const char *name) {
 
 NetStack::RecvCallback::RecvCallback(int linkType_) : linkType(linkType_) {}
 
-void NetStack::addRecvCallback(NetStack::RecvCallback *callback) {
+void NetStack::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
 }
 
@@ -80,14 +82,6 @@ int NetStack::loop() {
       ERRLOG("pcap_setnonblock (device %s) error: %s\n", d->name, errbuf);
       return rc;
     }
-
-    rc = pcap_activate(d->p);
-    if (rc != 0) {
-      ERRLOG("pcap_activate (device %s) error: %s\n", d->name,
-             pcap_geterr(d->p));
-      return rc;
-    }
-
     rc = pcap_setdirection(d->p, PCAP_D_IN);
     if (rc != 0) {
       ERRLOG("pcap_setdirection (device %s) error: %s\n", d->name,
