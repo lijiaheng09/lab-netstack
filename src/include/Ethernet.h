@@ -4,7 +4,13 @@
 #include <cinttypes>
 
 #include "utils.h"
+
 #include "NetStack.h"
+
+#define ETHERNET_ADDR_FMT_STRING "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
+#define ETHERNET_ADDR_FMT_ARGS(a)                                              \
+  a.data[0], a.data[1], a.data[2], a.data[3], a.data[4], a.data[5]
+#define ETHERNET_ADDR_FMT_NUM 6
 
 class Ethernet {
 public:
@@ -21,6 +27,7 @@ public:
   };
 
   NetStack &stack;
+
   Ethernet(NetStack &stack_);
   Ethernet(const Ethernet &) = delete;
 
@@ -38,12 +45,12 @@ public:
      * @param etherType The etherType field.
      * @return 0 on success, negative on error.
      */
-    int sendFrame(void *buf, int len, const Addr &dst, int etherType);
+    int sendFrame(const void *buf, int len, const Addr &dst, int etherType);
   };
 
   /**
    * @brief Add an Ethernet device to the netstack.
-   * 
+   *
    * @param name Name of the device.
    * @return Pointer to the added `Ethernet::Device` object, nullptr on error.
    */
@@ -57,21 +64,20 @@ public:
    */
   Device *findDeviceByName(const char *name);
 
-
   class RecvCallback {
   public:
     int etherType; // The matching etherType, -1 for any.
 
     /**
      * @brief Construct a new RecvCallback object.
-     * 
+     *
      * @param etherType_ The matching etherType, -1 for any.
      */
     RecvCallback(int etherType_);
 
     /**
-     * @brief Handle a received Ethernet frame.
-     * 
+     * @brief Handle a received Ethernet frame (guaranteed valid).
+     *
      * @param buf Pointer to the frame.
      * @param len Length of the frame.
      * @param device Pointer to a `Ethernet::Device` object, describing the
@@ -87,8 +93,7 @@ public:
 
   /**
    * @brief Setup the Ethernet Layer.
-   * 
-   * @param stack The base netstack.
+   *
    * @return 0 on success, negative on error.
    */
   int setup();
@@ -96,6 +101,7 @@ public:
 private:
   class NetStackHandler : public NetStack::RecvCallback {
     Ethernet &ethernetLayer;
+
   public:
     NetStackHandler(Ethernet &ethernetLayer_);
     int handle(const void *buf, int len, NetStack::Device *device) override;

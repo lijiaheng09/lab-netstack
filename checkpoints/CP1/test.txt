@@ -1,12 +1,11 @@
 !ifconfig
-findAllDevs
-findDevice veth3-0
-addDevice veth3-0
-findDevice veth3-0
-addDevice veth-err
-addDevice veth3-2
-addDevice veth3-1
-findDevice veth3-0
-findDevice veth3-2
-findDevice veth3-4
-addDevice veth3-4
+find-device veth3-0
+add-device veth3-0
+find-device veth3-0
+add-device veth-err
+add-device veth3-2
+add-device veth3-1
+find-device veth3-0
+find-device veth3-2
+find-device veth3-4
+add-device veth3-4

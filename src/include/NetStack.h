@@ -27,7 +27,7 @@ public:
      * @param len Length of the frame.
      * @return 0 on success, negative on error.
      */
-    int sendFrame(void *buf, int len);
+    int sendFrame(const void *buf, int len);
 
     friend class NetStack;
   };
@@ -44,7 +44,7 @@ public:
    * @brief Find an added device ID by its name.
    *
    * @param name Name of the device.
-   * @return Pointer to the `NetStack::Device` object, nullptr if not found.
+   * @return Pointer to the `NetStack::Device` object, `nullptr` if not found.
    */
   Device *findDeviceByName(const char *name);
 

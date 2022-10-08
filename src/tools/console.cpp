@@ -1,92 +1,80 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
+#include <vector>
 #include <thread>
+
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include <pcap/pcap.h>
 
-#include <netinet/ether.h>
-#include <linux/if_packet.h>
+#include <arpa/inet.h>
 
 #include "NetStack.h"
 #include "Ethernet.h"
+#include "IPv4.h"
+#include "LpmRouting.h"
+#include "IPv4Forward.h"
 
 NetStack netstack;
 Ethernet ethernetLayer(netstack);
+IPv4 ipv4Layer(ethernetLayer);
+IPv4Forward ipv4Forward(ipv4Layer);
+LpmRouting staticRouting;
+
+std::vector<char *> devNames;
 
 namespace commands {
-
-int findAllDevs(int argc, char **argv) {
-  char errbuf[PCAP_ERRBUF_SIZE];
-  pcap_if_t *devices;
-  if (pcap_findalldevs(&devices, errbuf) != 0)
-    fprintf(stderr, "error\n");
-  for (auto *p = devices; p; p = p->next) {
-    printf("device %s: %s\n", p->name, p->description);
-    for (auto *a = p->addresses; a; a = a->next) {
-      if (a->addr->sa_family == AF_PACKET) {
-        struct sockaddr_ll *s = (struct sockaddr_ll*)a->addr;
-        if (s->sll_hatype == ARPHRD_ETHER) {
-          printf("    ether ");
-          for (int i = 0; i < s->sll_halen; i++)
-            printf("%02X%c", s->sll_addr[i], i + 1 < s->sll_halen ? ':' : '\n');
-        }
-      }
-    }
-  }
-  pcap_freealldevs(devices);
-  return 0;
-}
-
 int addDevice(int argc, char **argv) {
   if (argc != 2) {
-    fprintf(stderr, "usage: addDevice <device>\n");
+    fprintf(stderr, "usage: %s <name>\n", argv[0]);
     return 1;
   }
   auto *d = ethernetLayer.addDeviceByName(argv[1]);
   if (!d) {
-    fprintf(stderr, "error\n");
     return 1;
   }
   printf("device added: %s\n", d->name);
-  printf("    ether ");
-  for (int i = 0; i < sizeof(d->addr); i++)
-    printf("%02X%c", d->addr.data[i], i + 1 < sizeof(d->addr) ? ':' : '\n');
+  printf("    ether " ETHERNET_ADDR_FMT_STRING "\n",
+         ETHERNET_ADDR_FMT_ARGS(d->addr));
   return 0;
 }
 
 int findDevice(int argc, char **argv) {
   if (argc != 2) {
-    fprintf(stderr, "usage: findDevice <device>\n");
+    fprintf(stderr, "usage: %s <name>\n", argv[0]);
     return 1;
   }
   auto *d = ethernetLayer.findDeviceByName(argv[1]);
   if (!d) {
-    printf("device not found\n");
+    printf("device not found: %s\n", argv[1]);
     return 1;
   }
   printf("device found: %s\n", d->name);
-  printf("    ether ");
-  for (int i = 0; i < sizeof(d->addr); i++)
-    printf("%02X%c", d->addr.data[i], i + 1 < sizeof(d->addr) ? ':' : '\n');
+  printf("    ether " ETHERNET_ADDR_FMT_STRING "\n",
+         ETHERNET_ADDR_FMT_ARGS(d->addr));
   return 0;
 }
 
 int sendFrame(int argc, char **argv) {
-  int id, ethtype, padding = 0;
-  Ethernet::Addr destmac;
+  int id, etherType, padding = 0;
+  Ethernet::Addr dstMAC;
   if (argc < 5 ||
-      !ether_aton_r(argv[2], (ether_addr *)&destmac) ||
-      sscanf(argv[3], "0x%x", &ethtype) != 1 ||
-      (argc == 6 && sscanf(argv[5], "%d", &padding) != 1) ||
-      argc > 6) {
-    fprintf(stderr, "usage: sendFrame <device> <destmac> <ethtype-hex> <data> [padding]\n");
+      sscanf(argv[2], ETHERNET_ADDR_FMT_STRING,
+             ETHERNET_ADDR_FMT_ARGS(&dstMAC)) != ETHERNET_ADDR_FMT_NUM ||
+      sscanf(argv[3], "0x%x", &etherType) != 1 ||
+      (argc == 6 && sscanf(argv[5], "%d", &padding) != 1) || argc > 6) {
+    fprintf(stderr,
+            "usage: %s <device> <dstMAC> 0x<etherType> <data> [padding]\n",
+            argv[0]);
     return 1;
   }
 
   auto *d = ethernetLayer.findDeviceByName(argv[1]);
   if (!d) {
-    fprintf(stderr, "Device not found: %s\n", argv[1]);
+    fprintf(stderr, "device not found: %s\n", argv[1]);
     return 1;
   }
 
@@ -94,47 +82,90 @@ int sendFrame(int argc, char **argv) {
   int len = rLen + padding;
   char *data = (char *)malloc(len);
   if (!data) {
-    fprintf(stderr, "error\n");
+    fprintf(stderr, "malloc error: %s\n", strerror(errno));
     return 1;
   }
   memcpy(data, argv[4], rLen);
   memset(data + rLen, 0, padding);
 
-  int ret = d->sendFrame(data, len, destmac, ethtype);
+  int ret = d->sendFrame(data, len, dstMAC, etherType);
   free(data);
-  
+
   if (ret != 0) {
-    fprintf(stderr, "error\n");
     return 1;
   }
   return 0;
 }
 
+int startLoop(int argc, char **argv) {
+  return netstack.loop();
+}
+
 class CaptureRecvCallback : public Ethernet::RecvCallback {
 public:
-  CaptureRecvCallback() : Ethernet::RecvCallback(-1) { }
+  CaptureRecvCallback() : Ethernet::RecvCallback(-1) {}
 
   int handle(const void *buf, int len, Ethernet::Device *d) override {
-    ether_addr *dst = (ether_addr *)buf;
-    ether_addr *src = dst + 1;
-    uint16_t *ethtypeNetp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);
-    int ethtype = ntohs(*ethtypeNetp);
+    const auto &header = *(const Ethernet::Header *)&buf;
+    int etherType = ntohs(header.etherType);
     printf("Recv length %d from device %s\n", len, d->name);
-    char dstStr[30], srcStr[30];
-    ether_ntoa_r(dst, dstStr);
-    ether_ntoa_r(src, srcStr);
-    printf("    dst %s, src %s, ethtype %02x\n", dstStr, srcStr, ethtype);
+    printf("    dst " ETHERNET_ADDR_FMT_STRING ", src " ETHERNET_ADDR_FMT_STRING
+           ", ethtype 0x%04X\n",
+           ETHERNET_ADDR_FMT_ARGS(header.dst),
+           ETHERNET_ADDR_FMT_ARGS(header.src), etherType);
     return 0;
   }
 } captureRecvCallback;
 
-int startCapture(int argc, char **argv) {
+int enableEthernetCapture(int argc, char **argv) {
   ethernetLayer.addRecvCallback(&captureRecvCallback);
-  if (netstack.loop() != 0) {
-    fprintf(stderr, "error.\n");
-    return -1;
-  }
   return 0;
+}
+
+int addIPAddr(int argc, char **argv) {
+  IPv4::Addr addr;
+  if (argc != 3 || sscanf(argv[2], IPV4_ADDR_FMT_STRING,
+                          IPV4_ADDR_FMT_ARGS(&addr)) != IPV4_ADDR_FMT_NUM) {
+    fprintf(stderr, "usage: %s <device> <ip-addr>\n", argv[0]);
+    return 1;
+  }
+  auto *d = ethernetLayer.findDeviceByName(argv[1]);
+  if (!d) {
+    fprintf(stderr, "device not found: %s\n", argv[1]);
+    return 1;
+  }
+  ipv4Layer.addAddr(d, addr);
+  return 0;
+}
+
+int setStaticRouting(int argc, char **argv) {
+  ipv4Layer.setRouting(&staticRouting);
+  return 0;
+}
+
+int setRoutingEntry(int argc, char **argv) {
+  LpmRouting::Entry entry;
+  if (argc != 5 ||
+      sscanf(argv[1], IPV4_ADDR_FMT_STRING, IPV4_ADDR_FMT_ARGS(&entry.addr)) !=
+          IPV4_ADDR_FMT_NUM ||
+      sscanf(argv[2], IPV4_ADDR_FMT_STRING, IPV4_ADDR_FMT_ARGS(&entry.mask)) !=
+          IPV4_ADDR_FMT_NUM ||
+      sscanf(argv[4], ETHERNET_ADDR_FMT_STRING,
+             ETHERNET_ADDR_FMT_ARGS(&entry.dstMAC)) != ETHERNET_ADDR_FMT_NUM) {
+    fprintf(stderr, "usage: %s <ip> <mask> <device> <dstMAC>\n", argv[0]);
+    return 1;
+  }
+  entry.device = ethernetLayer.findDeviceByName(argv[3]);
+  if (!entry.device) {
+    fprintf(stderr, "device not found: %s\n", argv[3]);
+    return 1;
+  }
+  staticRouting.setEntry(entry);
+  return 0;
+}
+
+int enableIPForward(int argc, char **argv) {
+  return ipv4Forward.setup();
 }
 
 } // namespace commands
@@ -146,115 +177,100 @@ struct Command {
   CommandHandler handler;
 };
 
-Command commandList[] = {
-  {"findAllDevs", commands::findAllDevs},
-  {"addDevice", commands::addDevice},
-  {"findDevice", commands::findDevice},
-  {"sendFrame", commands::sendFrame},
-  {"startCapture", commands::startCapture}
-};
+std::vector<Command> commandList = {
+    {"add-device", commands::addDevice},
+    {"find-device", commands::findDevice},
+    {"start-loop", commands::startLoop},
+    {"send-frame", commands::sendFrame},
+    {"enable-ethernet-capture", commands::enableEthernetCapture},
+    {"add-ip-addr", commands::addIPAddr},
+    {"set-static-routing", commands::setStaticRouting},
+    {"set-routing-entry", commands::setRoutingEntry},
+    {"enable-ip-forward", commands::enableIPForward}};
 
-int parseLine(char *line, int &argc, char **argv) {
+std::vector<char *> splitLine(char *line) {
+  std::vector<char *> args;
   char *p = line;
-  argc = 1;
-  argv[0] = p;
+  args.push_back(p);
   while ((p = strchr(p, ' '))) {
     *p++ = '\0';
-    argv[argc++] = p;
+    while (*p && isspace(*p))
+      p++;
+    if (*p)
+      args.push_back(p);
   }
-  if (!(p = strchr(argv[argc - 1], '\n')))
-    return 1;
-  *p = '\0';
-  return 0;
+  return args;
+}
+
+char *completionEntryDevs(const char *text, int state) {
+  static std::vector<char *>::iterator cur;
+  static int textLen;
+  if (state == 0) {
+    cur = devNames.begin();
+    textLen = strlen(text);
+  }
+
+  while (cur != devNames.end()) {
+    auto c = cur++;
+    if (strncmp(*c, text, textLen) == 0)
+      return strdup(*c);
+  }
+  return nullptr;
+}
+
+char *completionEntryCmds(const char *text, int state) {
+  static std::vector<Command>::iterator cur;
+  static int textLen;
+  if (state == 0) {
+    cur = commandList.begin();
+    textLen = strlen(text);
+  }
+
+  while (cur != commandList.end()) {
+    auto c = cur++;
+    if (strncmp(c->name, text, textLen) == 0)
+      return strdup(c->name);
+  }
+  return nullptr;
+}
+
+char **complete(const char *text, int start, int end) {
+  char **matches = nullptr;
+  if (start == 0)
+    matches = rl_completion_matches(text, completionEntryCmds);
+  else
+    matches = rl_completion_matches(text, completionEntryDevs);
+  return matches;
 }
 
 int main(int argc, char **argv) {
-  constexpr int MAX_LINE = 1000;
-  char line[MAX_LINE];
-  char *iargv[MAX_LINE];
-
-  if (netstack.setup() != 0) {
-    fprintf(stderr, "netstack setup error\n");
+  if (netstack.setup() != 0 || ethernetLayer.setup() != 0 ||
+      ipv4Layer.setup() != 0) {
     return 1;
   }
 
-  if (ethernetLayer.setup() != 0) {
-    fprintf(stderr, "Ethernet Layer setup error\n");
+  char errbuf[PCAP_ERRBUF_SIZE];
+  pcap_if_t *alldevs;
+  if (pcap_findalldevs(&alldevs, errbuf) != 0) {
+    fprintf(stderr, "pcap_findalldevs error: %s\n", errbuf);
     return 1;
   }
+  for (auto *d = alldevs; d; d = d->next)
+    devNames.push_back(strdup(d->name));
 
-  bool fileFromArg = false;
-  FILE *fp = nullptr;
-  if (argc >= 2) {
-    fp = fopen(argv[1], "r");
-    if (!fp) {
-      fprintf(stderr, "error open file\n");
-    } else {
-      fileFromArg = true;
-    }
-  }
+  rl_attempted_completion_function = complete;
 
   while (true) {
-    printf("> ");
-    fflush(stdout);
+    char *line = readline("> ");
+    if (!line) {
+      puts("exit");
+      return 0;
+    }
+    add_history(line);
 
-    bool fromFile = false;
-    if (fp) {
-      if (!fgets(line, MAX_LINE, fp)) {
-        fclose(fp);
-        fp = nullptr;
-        if (fileFromArg) {
-          printf("exit\n");
-          return 0;
-        }
-      } else {
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(1000ms);
-        for (char *p = line; *p && *p != '\n'; p++) {
-          putchar(*p);
-          fflush(stdout);
-        std::this_thread::sleep_for(10ms);
-        }
-        std::this_thread::sleep_for(1000ms);
-        putchar('\n');
-        fflush(stdout);
-        fromFile = true;
-      }
-    }
-
-    if (!fromFile) {
-      if (!fgets(line, MAX_LINE, stdin)) {
-        printf("exit\n");
-        return 0;
-      }
-    }
-
-    if (line[0] == '\n')
-      continue;
-    if (line[strlen(line) - 1] != '\n') {
-      fprintf(stderr, "too long line\n");
-      return 1;
-    }
-    if (line[0] == '!') {
-      system(line + 1);
-      continue;
-    }
-    int iargc;
-    if (parseLine(line, iargc, iargv))
-      return 1;
-    
-    if (strcmp(iargv[0], "source") == 0) {
-      if (iargc != 2) {
-        fprintf(stderr, "usage: source <file>\n");
-        continue;
-      }
-      fp = fopen(iargv[1], "r");
-      if (!fp) {
-        fprintf(stderr, "error open file\n");
-        continue;
-      }
-      continue;
-    }
+    auto args = splitLine(line);
+    int iargc = (int)args.size();
+    char **iargv = args.data();
 
     CommandHandler handler = nullptr;
     for (auto &&c : commandList)

@@ -97,10 +97,10 @@ void sendThreadAction(Ethernet::Device *d, int seed) {
   static constexpr auto HELLO_TIMEOUT = 1000ms;
 
   while (!ready[i].try_lock_for(HELLO_TIMEOUT)) {
-    d->sendFrame((void *)HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
+    d->sendFrame((const void *)HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
     fprintf(stderr, "device %s sending HELLO\n", d->name);
   }
-  d->sendFrame((void *)HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
+  d->sendFrame((const void *)HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
   fprintf(stderr, "device %s sending HELLO\n", d->name);
 
   static constexpr int SENDING_BATCH = 30;
@@ -109,7 +109,7 @@ void sendThreadAction(Ethernet::Device *d, int seed) {
   std::mt19937 rnd(seed);
   for (int t = 1; t <= TIMES; t++) {
     LongNum x = randLongNum(rnd);
-    if (d->sendFrame((void *)x.v, LEN, dstAddr[i], ETH_TYPE_EXP1) != 0) {
+    if (d->sendFrame((const void *)x.v, LEN, dstAddr[i], ETH_TYPE_EXP1) != 0) {
       fprintf(stderr, "Sending error %s: %d\n", d->name, t);
     } else {
       sentData[i] ^= x;

@@ -2,8 +2,9 @@
 
 #include <pcap/pcap.h>
 
-#include "NetStack.h"
 #include "log.h"
+
+#include "NetStack.h"
 
 NetStack::Device::Device(pcap_t *p_, const char *name_, int linkType_)
     : p(p_), id(-1), name(new char[strlen(name_) + 1]), linkType(linkType_) {
@@ -15,7 +16,7 @@ NetStack::Device::~Device() {
   delete[] name;
 }
 
-int NetStack::Device::sendFrame(void *buf, int len) {
+int NetStack::Device::sendFrame(const void *buf, int len) {
   return pcap_sendpacket(p, (u_char *)buf, len);
 }
 
@@ -69,7 +70,7 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
     return;
   }
 
-  args.stack->handleFrame((void *)bytes, h->len, args.device);
+  args.stack->handleFrame((const void *)bytes, h->len, args.device);
 }
 
 int NetStack::loop() {

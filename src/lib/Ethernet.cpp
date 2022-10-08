@@ -7,8 +7,9 @@
 #include <linux/if_arp.h>
 #include <linux/if_packet.h>
 
-#include "Ethernet.h"
 #include "log.h"
+
+#include "Ethernet.h"
 
 constexpr int Ethernet::LINK_TYPE = DLT_EN10MB;
 
@@ -17,11 +18,11 @@ Ethernet::Ethernet(NetStack &stack_) : stack(stack_), netstackHandler(*this) {}
 Ethernet::Device::Device(pcap_t *p_, const char *name_, const Addr &addr_)
     : NetStack::Device(p_, name_, LINK_TYPE), addr(addr_) {}
 
-int Ethernet::Device::sendFrame(void *buf, int len, const Addr &dst, int etherType) {
+int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst, int etherType) {
   int frameLen = sizeof(Header) + len;
 
   if ((etherType >> 16) != 0) {
-    ERRLOG("Invalid etherType: %d\n", etherType);
+    ERRLOG("Invalid etherType: %X\n", etherType);
     return -1;
   }
 
@@ -114,14 +115,14 @@ void Ethernet::addRecvCallback(RecvCallback *callback) {
 
 int Ethernet::handleFrame(const void *buf, int len, Device *device) {
   if (len < sizeof(Header)) {
-    ERRLOG("Truncated header (device %s): %d/%d\n", device->name, len, (int)sizeof(Header));
+    ERRLOG("Truncated Ethernet header (device %s): %d/%d\n", device->name, len, (int)sizeof(Header));
     return -1;
   }
   const Header &h = *(const Header *)buf;
   int etherType = ntohs(h.etherType);
   int rc = 0;
   for (auto *c : callbacks)
-    if (c->etherType == -1 || c->etherType == h.etherType)
+    if (c->etherType == -1 || c->etherType == etherType)
       if (c->handle(buf, len, device) != 0)
         rc = -1;
   return rc;
@@ -139,6 +140,6 @@ int Ethernet::NetStackHandler::handle(const void *buf, int len,
                                       NetStack::Device *device) {
   if (auto *d = dynamic_cast<Device *>(device))
     return ethernetLayer.handleFrame(buf, len, d);
-  ERRLOG("Invalid device sent to Ethernet layer: device %s\n", device->name);
+  ERRLOG("Unconfigured Ethernet device: device %s\n", device->name);
   return -1;
 }

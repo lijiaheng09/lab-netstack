@@ -4,8 +4,12 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DNETSTACK_DEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DNETSTACK_DEBUG")
 
 add_library(lab-netstack
+  utils.cpp
   NetStack.cpp
   Ethernet.cpp
+  IPv4.cpp
+  IPv4Forward.cpp
+  LpmRouting.cpp
 )
 
 target_link_libraries(lab-netstack PRIVATE pcap)
