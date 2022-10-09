@@ -5,43 +5,43 @@
 
 #include "log.h"
 
-#include "NetStack.h"
+#include "NetBase.h"
 
-NetStack::Device::Device(pcap_t *p_, const char *name_, int linkType_)
+NetBase::Device::Device(pcap_t *p_, const char *name_, int linkType_)
     : p(p_), id(-1), name(strdup(name_)), linkType(linkType_) {}
 
-NetStack::Device::~Device() {
+NetBase::Device::~Device() {
   pcap_close(p);
   free(name);
 }
 
-int NetStack::Device::sendFrame(const void *buf, int len) {
+int NetBase::Device::sendFrame(const void *buf, int len) {
   int rc = pcap_sendpacket(p, (u_char *)buf, len);
   if (rc != 0)
     ERRLOG("pcap_sendpacket(device %s) error: %s\n", name, pcap_geterr(p));
   return rc;
 }
 
-int NetStack::addDevice(Device *device) {
+int NetBase::addDevice(Device *device) {
   device->id = (int)devices.size();
   devices.push_back(device);
   return device->id;
 }
 
-NetStack::Device *NetStack::findDeviceByName(const char *name) {
+NetBase::Device *NetBase::findDeviceByName(const char *name) {
   for (auto *d : devices)
     if (strcmp(d->name, name) == 0)
       return d;
   return nullptr;
 }
 
-NetStack::RecvCallback::RecvCallback(int linkType_) : linkType(linkType_) {}
+NetBase::RecvCallback::RecvCallback(int linkType_) : linkType(linkType_) {}
 
-void NetStack::addRecvCallback(RecvCallback *callback) {
+void NetBase::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
 }
 
-int NetStack::handleFrame(const void *buf, int len, Device *device) {
+int NetBase::handleFrame(const void *buf, int len, Device *device) {
   int rc = 0;
   for (auto *c : callbacks)
     if (c->linkType == -1 || device->linkType == c->linkType)
@@ -50,7 +50,7 @@ int NetStack::handleFrame(const void *buf, int len, Device *device) {
   return rc;
 }
 
-int NetStack::setup() {
+int NetBase::setup() {
   char errbuf[PCAP_ERRBUF_SIZE];
   int rc = pcap_init(PCAP_CHAR_ENC_UTF_8, errbuf);
   if (rc != 0)
@@ -59,8 +59,8 @@ int NetStack::setup() {
 }
 
 struct PcapHandleArgs {
-  NetStack *netstack;
-  NetStack::Device *device;
+  NetBase *netBase;
+  NetBase::Device *device;
 };
 
 static void handlePcap(u_char *user, const pcap_pkthdr *h,
@@ -72,10 +72,10 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
     return;
   }
 
-  args.netstack->handleFrame((const void *)bytes, h->len, args.device);
+  args.netBase->handleFrame(bytes, h->len, args.device);
 }
 
-int NetStack::loop() {
+int NetBase::loop() {
   char errbuf[PCAP_ERRBUF_SIZE];
   for (auto *d : devices) {
     int rc;
@@ -94,7 +94,7 @@ int NetStack::loop() {
 
   while (1) {
     for (auto *d : devices) {
-      PcapHandleArgs args{netstack : this, device : d};
+      PcapHandleArgs args{netBase : this, device : d};
       int rc = pcap_dispatch(d->p, -1, handlePcap, (u_char *)&args);
       if (rc < 0) {
         if (rc == PCAP_ERROR)

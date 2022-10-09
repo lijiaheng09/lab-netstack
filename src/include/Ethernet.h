@@ -5,7 +5,7 @@
 
 #include "utils.h"
 
-#include "NetStack.h"
+#include "NetBase.h"
 
 #define ETHERNET_ADDR_FMT_STRING "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
 #define ETHERNET_ADDR_FMT_ARGS(a)                                              \
@@ -13,14 +13,14 @@
 #define ETHERNET_ADDR_FMT_NUM 6
 
 /**
- * @brief The Ethernet link layer service built above `NetStack`.
+ * @brief The Ethernet link layer service built above `NetBase`.
  * Can open Ethernet devices and handling sending & receiving of Ethernet
  * frames.
  * May build network services based on etherType above it.
  */
 class Ethernet {
 public:
-  static const int LINK_TYPE; // The corresponding linkType in netstack.
+  static const int LINK_TYPE; // The corresponding linkType in netBase.
 
   struct Addr {
     unsigned char data[6];
@@ -32,12 +32,12 @@ public:
     uint16_t etherType;
   };
 
-  NetStack &netstack;
+  NetBase &netBase;
 
-  Ethernet(NetStack &netstack_);
+  Ethernet(NetBase &netBase_);
   Ethernet(const Ethernet &) = delete;
 
-  class Device : public NetStack::Device {
+  class Device : public NetBase::Device {
     Device(struct pcap *p_, const char *name_, const Addr &addr_);
 
     friend class Ethernet;
@@ -121,13 +121,13 @@ public:
   int setup();
 
 private:
-  class NetStackHandler : public NetStack::RecvCallback {
+  class NetBaseHandler : public NetBase::RecvCallback {
     Ethernet &ethernet;
 
   public:
-    NetStackHandler(Ethernet &ethernet_);
-    int handle(const void *buf, int len, NetStack::Device *device) override;
-  } netstackHandler;
+    NetBaseHandler(Ethernet &ethernet_);
+    int handle(const void *buf, int len, NetBase::Device *device) override;
+  } netBaseHandler;
 
   Vector<RecvCallback *> callbacks;
 };

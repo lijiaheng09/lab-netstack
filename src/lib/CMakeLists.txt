@@ -5,7 +5,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DNETSTACK_DEBUG")
 
 add_library(lab-netstack
   utils.cpp
-  NetStack.cpp
+  NetBase.cpp
   Ethernet.cpp
   IPv4.cpp
   IPv4Forward.cpp

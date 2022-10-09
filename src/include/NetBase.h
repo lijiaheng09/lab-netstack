@@ -7,10 +7,10 @@
  * @brief Base of the netstack, handling sending & receiving of pcap devices.
  * May build services for devices of specific linkType above it.
  */
-class NetStack {
+class NetBase {
 public:
-  NetStack() = default;
-  NetStack(const NetStack &) = delete;
+  NetBase() = default;
+  NetBase(const NetBase &) = delete;
 
   class Device {
     struct pcap *p;
@@ -33,7 +33,7 @@ public:
      */
     int sendFrame(const void *buf, int len);
 
-    friend class NetStack;
+    friend class NetBase;
   };
 
   /**
@@ -93,7 +93,7 @@ public:
   int handleFrame(const void *buf, int len, Device *device);
 
   /**
-   * @brief Setup the netstack.
+   * @brief Setup the netstack base.
    *
    * @return 0 on success, negative on error.
    */

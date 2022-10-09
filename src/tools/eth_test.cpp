@@ -7,16 +7,16 @@
 #include <arpa/inet.h>
 #include <netinet/ether.h>
 
-#include "NetStack.h"
+#include "NetBase.h"
 #include "Ethernet.h"
 
 static constexpr int LEN = 128;
 
 struct LongNum {
   u_char v[LEN];
-  LongNum() : v{} { }
+  LongNum() : v{} {}
 
-  LongNum &operator ^=(const LongNum &a) {
+  LongNum &operator^=(const LongNum &a) {
     for (int i = 0; i < LEN; i++)
       v[i] ^= a.v[i];
     return *this;
@@ -36,7 +36,6 @@ LongNum randLongNum(std::mt19937 &rnd) {
     ret.v[i] = rnd() & 255;
   return ret;
 }
-
 
 const int MAX_DEVS = 128;
 int n;
@@ -72,7 +71,8 @@ public:
 
     } else if (ethtype == ETH_TYPE_EXP1) {
       if (len < ETHER_HDR_LEN + LEN) {
-        fprintf(stderr, "invalid frame of length %d from device %s\n", len, d->name);
+        fprintf(stderr, "invalid frame of length %d from device %s\n", len,
+                d->name);
         return 1;
       }
       LongNum x = *(LongNum *)((char *)buf + ETHER_HDR_LEN);
@@ -97,10 +97,10 @@ void sendThreadAction(Ethernet::Device *d, int seed) {
   static constexpr auto HELLO_TIMEOUT = 1000ms;
 
   while (!ready[i].try_lock_for(HELLO_TIMEOUT)) {
-    d->sendFrame((const void *)HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
+    d->sendFrame(HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
     fprintf(stderr, "device %s sending HELLO\n", d->name);
   }
-  d->sendFrame((const void *)HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
+  d->sendFrame(HELLO_DATA, HELLO_LEN, dstAddr[i], ETH_TYPE_EXP2);
   fprintf(stderr, "device %s sending HELLO\n", d->name);
 
   static constexpr int SENDING_BATCH = 30;
@@ -109,7 +109,7 @@ void sendThreadAction(Ethernet::Device *d, int seed) {
   std::mt19937 rnd(seed);
   for (int t = 1; t <= TIMES; t++) {
     LongNum x = randLongNum(rnd);
-    if (d->sendFrame((const void *)x.v, LEN, dstAddr[i], ETH_TYPE_EXP1) != 0) {
+    if (d->sendFrame(x.v, LEN, dstAddr[i], ETH_TYPE_EXP1) != 0) {
       fprintf(stderr, "Sending error %s: %d\n", d->name, t);
     } else {
       sentData[i] ^= x;
@@ -122,12 +122,13 @@ void sendThreadAction(Ethernet::Device *d, int seed) {
   }
 }
 
-NetStack netstack;
+NetBase netstack;
 Ethernet ethernetLayer(netstack);
 
 int main(int argc, char **argv) {
   if (argc == 1 || (argc - 1) % 2 != 0) {
-    fprintf(stderr, "usage: %s <device> <dstAddr> [<device> <dstAddr>]...\n", argv[0]);
+    fprintf(stderr, "usage: %s <device> <dstAddr> [<device> <dstAddr>]...\n",
+            argv[0]);
     return 1;
   }
 
@@ -150,7 +151,7 @@ int main(int argc, char **argv) {
   }
 
   fprintf(stderr, "Start\n");
-  
+
   for (int i = 0; i < n; i++) {
     ready[i].lock();
     receiving[i].lock();
@@ -164,7 +165,7 @@ int main(int argc, char **argv) {
   std::random_device rndDev;
   for (int i = 0; i < n; i++)
     sendThreads[i] = new std::thread(sendThreadAction, devs[i], rndDev());
-  
+
   for (int i = 0; i < n; i++) {
     sendThreads[i]->join();
     delete sendThreads[i];
@@ -175,13 +176,14 @@ int main(int argc, char **argv) {
     using namespace std::chrono_literals;
     while (!receiving[i].try_lock_for(1s)) {
       // dangerous, but for diagnostics only
-      fprintf(stderr, "device %s recv %d/%d\n", devs[i]->name, recvNum[i], TIMES);
+      fprintf(stderr, "device %s recv %d/%d\n", devs[i]->name, recvNum[i],
+              TIMES);
     }
   }
-  
+
   for (int i = 0; i < n; i++) {
-    printf("device %s: %s, sent %016lX, recv %016lX\n",
-      devs[i]->name, argv[2 * i + 1], sentData[i].checksum(), recvData[i].checksum());
+    printf("device %s: %s, sent %016lX, recv %016lX\n", devs[i]->name,
+           argv[2 * i + 1], sentData[i].checksum(), recvData[i].checksum());
   }
 
   return 0;

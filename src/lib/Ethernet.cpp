@@ -13,11 +13,11 @@
 
 constexpr int Ethernet::LINK_TYPE = DLT_EN10MB;
 
-Ethernet::Ethernet(NetStack &netstack_)
-    : netstack(netstack_), netstackHandler(*this) {}
+Ethernet::Ethernet(NetBase &netBase_)
+    : netBase(netBase_), netBaseHandler(*this) {}
 
 Ethernet::Device::Device(pcap_t *p_, const char *name_, const Addr &addr_)
-    : NetStack::Device(p_, name_, LINK_TYPE), addr(addr_) {}
+    : NetBase::Device(p_, name_, LINK_TYPE), addr(addr_) {}
 
 int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst,
                                 int etherType) {
@@ -38,13 +38,13 @@ int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst,
   Header{dst : dst, src : addr, etherType : htons(etherType)};
   memcpy((unsigned char *)frame + sizeof(Header), buf, len);
 
-  int rc = NetStack::Device::sendFrame(frame, frameLen);
+  int rc = NetBase::Device::sendFrame(frame, frameLen);
   free(frame);
   return rc;
 }
 
 Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
-  if (netstack.findDeviceByName(name)) {
+  if (netBase.findDeviceByName(name)) {
     ERRLOG("Duplicated device: %s\n", name);
     return nullptr;
   }
@@ -102,12 +102,12 @@ Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
   }
 
   auto *d = new Device(p, name, addr);
-  netstack.addDevice(d);
+  netBase.addDevice(d);
   return d;
 }
 
 Ethernet::Device *Ethernet::findDeviceByName(const char *name) {
-  return dynamic_cast<Device *>(netstack.findDeviceByName(name));
+  return dynamic_cast<Device *>(netBase.findDeviceByName(name));
 }
 
 Ethernet::RecvCallback::RecvCallback(int etherType_) : etherType(etherType_) {}
@@ -133,15 +133,15 @@ int Ethernet::handleFrame(const void *buf, int len, Device *device) {
 }
 
 int Ethernet::setup() {
-  netstack.addRecvCallback(&netstackHandler);
+  netBase.addRecvCallback(&netBaseHandler);
   return 0;
 }
 
-Ethernet::NetStackHandler::NetStackHandler(Ethernet &ethernet_)
-    : NetStack::RecvCallback(LINK_TYPE), ethernet(ethernet_) {}
+Ethernet::NetBaseHandler::NetBaseHandler(Ethernet &ethernet_)
+    : NetBase::RecvCallback(LINK_TYPE), ethernet(ethernet_) {}
 
-int Ethernet::NetStackHandler::handle(const void *buf, int len,
-                                      NetStack::Device *device) {
+int Ethernet::NetBaseHandler::handle(const void *buf, int len,
+                                      NetBase::Device *device) {
   if (auto *d = dynamic_cast<Device *>(device))
     return ethernet.handleFrame(buf, len, d);
   ERRLOG("Unconfigured Ethernet device: %s\n", device->name);

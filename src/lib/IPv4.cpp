@@ -45,9 +45,9 @@ int IPv4::sendPacketWithHeader(void *buf, int len) {
   }
 
   header.headerChecksum = 0;
-  header.headerChecksum = calcInternetChecksum16((const void *)&header, hdrLen);
+  header.headerChecksum = calcInternetChecksum16(&header, hdrLen);
 #ifdef NETSTACK_DEBUG
-  assert(calcInternetChecksum16((const void *)&header, hdrLen) == 0);
+  assert(calcInternetChecksum16(&header, hdrLen) == 0);
 #endif
 
   if (!routing) {
@@ -119,7 +119,7 @@ int IPv4::handlePacket(const void *buf, int len) {
     ERRLOG("Truncated IPv4 packet: %d/%d:%d\n", len, hdrLen, packetLen);
     return -1;
   }
-  if (calcInternetChecksum16((const void *)&header, hdrLen) != 0) {
+  if (calcInternetChecksum16(&header, hdrLen) != 0) {
     ERRLOG("IPv4 Checksum error\n");
     return -1;
   }
@@ -148,6 +148,5 @@ IPv4::LinkLayerHandler::LinkLayerHandler(IPv4 &ipv4_)
 int IPv4::LinkLayerHandler::handle(const void *buf, int len,
                                    LinkLayer::Device *device) {
   return ipv4.handlePacket(
-      (const void *)((const unsigned char *)buf + sizeof(LinkLayer::Header)),
-      len);
+      (const unsigned char *)buf + sizeof(LinkLayer::Header), len);
 }
