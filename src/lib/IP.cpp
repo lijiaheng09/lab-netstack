@@ -26,6 +26,18 @@ void IP::addAddr(LinkLayer::Device *device, const Addr &addr) {
   addrs.push_back({device, addr});
 }
 
+int IP::getAnyAddr(LinkLayer::Device *device, Addr &addr) {
+  if (addrs.empty())
+    return -1;
+  for (auto &&e : addrs)
+    if (e.device == device) {
+      addr = e.addr;
+      return 1;
+    }
+  addr = addrs.front().addr;
+  return 0;
+}
+
 IP::LinkLayer::Device *IP::findDeviceByAddr(const Addr &addr) {
   for (auto &&a : addrs)
     if (a.addr == addr)
@@ -101,6 +113,7 @@ int IP::sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
     src : src,
     dst : dst
   };
+  memcpy(&header + 1, buf, len);
   int rc = sendPacketWithHeader(packet, packetLen);
   free(packet);
   return rc;
@@ -125,7 +138,7 @@ int IP::LinkLayerHandler::handle(const void *buf, int len,
                                  LinkLayer::Device *device, const Info &info) {
 
   int packetCapLen = len - sizeof(LinkLayer::Header);
-  
+
   if (packetCapLen < sizeof(Header)) {
     ERRLOG("Truncated IP header: %d/%d\n", len, (int)sizeof(Header));
     return -1;
@@ -155,7 +168,7 @@ int IP::LinkLayerHandler::handle(const void *buf, int len,
   for (auto *c : ip.callbacks)
     if (c->promiscuous || endDevice) {
       if (c->protocol == -1 || c->protocol == protocol) {
-        if (c->handle(buf, packetLen, newInfo))
+        if (c->handle(packet, packetLen, newInfo))
           rc = -1;
       }
     }

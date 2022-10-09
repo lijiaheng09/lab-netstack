@@ -67,6 +67,18 @@ public:
   void addAddr(LinkLayer::Device *device, const Addr &addr);
 
   /**
+   * @brief Get any IP address of a device. If there is no such address, get any
+   * of the host.
+   *
+   * @param device The preferred link layer device.
+   * @param addr Storage of the result.
+   *
+   * @return 0 on success, 1 if got address of other device, -1 if no address
+   * at all.
+   */
+  int getAnyAddr(LinkLayer::Device *device, Addr &addr);
+
+  /**
    * @brief Find the device by its assigned IP address.
    *
    * @param addr The assigned IP address.

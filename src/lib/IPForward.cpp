@@ -2,9 +2,12 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <sys/time.h>
+
 #include "log.h"
 
 #include "IPForward.h"
+#include "ICMP.h"
 
 IPForward::IPForward(IP &ip_)
     : ip(ip_), ipHandler(*this) {}
@@ -20,15 +23,24 @@ IPForward::IPHandler::IPHandler(IPForward &ipForward_)
 int IPForward::IPHandler::handle(const void *buf, int len, const Info &info) {
   const auto &origHeader = *(const IP::Header *)buf;
 
-  if (ipForward.ip.findDeviceByAddr(origHeader.dst)) {
+  if (info.endDevice) {
     // no need to forward.
     return 0;
   }
 
+  int procTime = 1;
+
+  timeval cur;
+  if (gettimeofday(&cur, nullptr) == 0) {
+    procTime = cur.tv_sec - info.ts.tv_sec;
+    if (cur.tv_usec >= info.ts.tv_usec)
+      procTime++;
+  }
+
   // Assuming the forwarding time much less than 1s.
-  if (origHeader.timeToLive <= 1) {
+  if (origHeader.timeToLive <= procTime) {
     // drop.
-    // TODO: send an ICMP packet.
+    ipForward.ip.icmp.sendTimeExceeded(buf, len, info);
     return 0;
   }
 
@@ -40,7 +52,7 @@ int IPForward::IPHandler::handle(const void *buf, int len, const Info &info) {
 
   memcpy(newBuf, buf, len);
   auto &newHeader = *(IP::Header *)newBuf;
-  newHeader.timeToLive -= 1;
+  newHeader.timeToLive -= procTime;
 
   int rc = ipForward.ip.sendPacketWithHeader(newBuf, len);
   free(newBuf);

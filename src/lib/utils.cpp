@@ -10,5 +10,9 @@ uint16_t calcInternetChecksum16(const void *data, int len) {
     sum += x;
     sum = (sum + (sum >> 16)) & 0xFFFF;
   }
+  if (len % 2 != 0) {
+    sum += (uint16_t)d[len - 1] << 8;
+    sum = (sum + (sum >> 16)) & 0xFFFF;
+  }
   return htons(~sum);
 }

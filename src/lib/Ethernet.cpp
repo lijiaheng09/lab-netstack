@@ -34,9 +34,9 @@ int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst,
     return -1;
   }
 
-  *(Header *)frame =
-  Header{dst : dst, src : addr, etherType : htons(etherType)};
-  memcpy((unsigned char *)frame + sizeof(Header), buf, len);
+  Header &header = *(Header *)frame;
+  header = Header{dst : dst, src : addr, etherType : htons(etherType)};
+  memcpy(&header + 1, buf, len);
 
   int rc = NetBase::Device::sendFrame(frame, frameLen);
   free(frame);

@@ -21,14 +21,16 @@ public:
 
   /**
    * @brief Send Time Exceeded Message back for an IP packet.
-   * 
+   *
    * @param orig Pointer to the original packet.
    * @param origLen Length of the original packet.
    * @param IP The IP layer service object.
-   * 
+   * @param info Other information of the received packet.
+   *
    * @return 0 on success, negative on error.
    */
-   int sendTimeExceeded(const void *orig, int origLen);
+  int sendTimeExceeded(const void *orig, int origLen,
+                       const IP::RecvCallback::Info &info);
 };
 
 #endif
