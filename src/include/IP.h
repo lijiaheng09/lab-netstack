@@ -24,17 +24,25 @@ public:
   static const int PROTOCOL_ID; // The corresponding etherType
 
   struct Addr {
-    unsigned char data[4];
+    union {
+      unsigned char data[4];
+      uint32_t num;
+    };
 
+    Addr operator~() const {
+      return {num : ~num};
+    }
     friend bool operator==(const Addr &a, const Addr &b) {
-      return *(uint32_t *)a.data == *(uint32_t *)b.data;
+      return a.num == b.num;
+    }
+    friend Addr operator&(const Addr &a, const Addr &b) {
+      return {num : a.num & b.num};
+    }
+    friend Addr operator|(const Addr &a, const Addr &b) {
+      return {num : a.num | b.num};
     }
 
-    friend Addr operator&(const Addr &a, const Addr &b) {
-      Addr res;
-      *(uint32_t *)res.data = *(uint32_t *)a.data & *(uint32_t *)b.data;
-      return res;
-    }
+    static const Addr BROADCAST;
   };
 
   struct Header {
@@ -58,13 +66,19 @@ public:
   IP(const IP &) = delete;
   ~IP();
 
+  class DevAddr {
+  public:
+    LinkLayer::Device *device; // The corresponding link layer device.
+    Addr addr;                 // The IP address
+    Addr mask;                 // The subnet mask
+  };
+
   /**
    * @brief Assign an IP address to a device.
    *
-   * @param device The link layer device to be set.
-   * @param addr The assigned IP address.
+   * @param entry The address entry to be added.
    */
-  void addAddr(LinkLayer::Device *device, const Addr &addr);
+  void addAddr(const DevAddr &entry);
 
   /**
    * @brief Get any IP address of a device. If there is no such address, get any
@@ -159,6 +173,7 @@ public:
       const LinkLayer::Header *linkHeader;
       LinkLayer::Device *linkDevice;
 
+      bool isBroadcast;
       LinkLayer::Device *endDevice;
 
       Info(const LinkLayer::RecvCallback::Info &info_)
@@ -192,11 +207,6 @@ public:
   int setup();
 
 private:
-  class DevAddr {
-  public:
-    LinkLayer::Device *device;
-    Addr addr;
-  };
   Vector<DevAddr> addrs;
   Routing *routing;
 

@@ -13,6 +13,7 @@
 #include "ICMP.h"
 
 constexpr int IP::PROTOCOL_ID = ETHERTYPE_IP;
+constexpr IP::Addr IP::Addr::BROADCAST{255, 255, 255, 255};
 
 IP::IP(LinkLayer &linkLayer_)
     : linkLayer(linkLayer_), routing(nullptr), linkLayerHandler(*this),
@@ -22,8 +23,8 @@ IP::~IP() {
   delete &icmp;
 }
 
-void IP::addAddr(LinkLayer::Device *device, const Addr &addr) {
-  addrs.push_back({device, addr});
+void IP::addAddr(const DevAddr &entry) {
+  addrs.push_back(entry);
 }
 
 int IP::getAnyAddr(LinkLayer::Device *device, Addr &addr) {
@@ -67,6 +68,19 @@ int IP::sendPacketWithHeader(void *buf, int len) {
 #ifdef NETSTACK_DEBUG
   assert(calcInternetChecksum16(&header, hdrLen) == 0);
 #endif
+
+  int rc = 0;
+  bool isBroadcast = false;
+  for (auto &&e : addrs)
+    if (header.dst == Addr::BROADCAST || header.dst == (e.addr | ~e.mask)) {
+      isBroadcast = true;
+      if (e.device->sendFrame(buf, len, LinkLayer::Addr::BROADCAST,
+                              PROTOCOL_ID) != 0) {
+        rc = -1;
+      }
+    }
+  if (isBroadcast)
+    return rc;
 
   if (!routing) {
     ERRLOG("No IP routing policy.\n");
@@ -158,10 +172,27 @@ int IP::LinkLayerHandler::handle(const void *buf, int len,
 
   IP::RecvCallback::Info newInfo(info);
 
-  LinkLayer::Device *endDevice = ip.findDeviceByAddr(header.dst);
+  LinkLayer::Device *endDevice = nullptr;
+  bool isBroadcast = false;
+
+  if (header.dst == Addr::BROADCAST) {
+    endDevice = device;
+    isBroadcast = true;
+  } else {
+    for (auto &&e : ip.addrs)
+      if (header.dst == (e.addr | ~e.mask)) {
+        endDevice = e.device;
+        isBroadcast = true;
+        break;
+      }
+  }
+
+  if (!isBroadcast)
+    endDevice = ip.findDeviceByAddr(header.dst);
   newInfo.linkDevice = device;
   newInfo.endDevice = endDevice;
   newInfo.linkHeader = (const LinkLayer::Header *)buf;
+  newInfo.isBroadcast = isBroadcast;
 
   int protocol = header.protocol;
   int rc = 0;

@@ -9,8 +9,7 @@
 #include "IPForward.h"
 #include "ICMP.h"
 
-IPForward::IPForward(IP &ip_)
-    : ip(ip_), ipHandler(*this) {}
+IPForward::IPForward(IP &ip_) : ip(ip_), ipHandler(*this) {}
 
 int IPForward::setup() {
   ip.addRecvCallback(&ipHandler);
@@ -24,7 +23,11 @@ int IPForward::IPHandler::handle(const void *buf, int len, const Info &info) {
   const auto &origHeader = *(const IP::Header *)buf;
 
   if (info.endDevice) {
-    // no need to forward.
+    /*
+     * no need to forward.
+     * TODO: forward a direct broadcast in LAN more than 2 devices (like a
+     * normal "router"), which is not the case we are facing now.
+     */
     return 0;
   }
 

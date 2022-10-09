@@ -24,6 +24,8 @@ public:
 
   struct Addr {
     unsigned char data[6];
+
+    static const Addr BROADCAST;
   };
 
   struct Header {

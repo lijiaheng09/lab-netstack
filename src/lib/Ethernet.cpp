@@ -13,6 +13,9 @@
 
 constexpr int Ethernet::LINK_TYPE = DLT_EN10MB;
 
+constexpr Ethernet::Addr Ethernet::Addr::BROADCAST{0xFF, 0xFF, 0xFF,
+                                                   0xFF, 0xFF, 0xFF};
+
 Ethernet::Ethernet(NetBase &netBase_)
     : netBase(netBase_), netBaseHandler(*this) {}
 
