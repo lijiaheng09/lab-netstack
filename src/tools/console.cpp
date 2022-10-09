@@ -106,7 +106,7 @@ public:
   CaptureRecvCallback() : Ethernet::RecvCallback(-1) {}
 
   int handle(const void *buf, int len, Ethernet::Device *d) override {
-    const auto &header = *(const Ethernet::Header *)&buf;
+    const auto &header = *(const Ethernet::Header *)buf;
     int etherType = ntohs(header.etherType);
     printf("Recv length %d from device %s\n", len, d->name);
     printf("    dst " ETHERNET_ADDR_FMT_STRING ", src " ETHERNET_ADDR_FMT_STRING
