@@ -6,9 +6,9 @@ public:
   CmdIPAddrAdd() : Command("ip-addr-add") {}
 
   int main(int argc, char **argv) override {
-    IPv4::Addr addr;
-    if (argc != 3 || sscanf(argv[1], IPV4_ADDR_FMT_STRING,
-                            IPV4_ADDR_FMT_ARGS(&addr)) != IPV4_ADDR_FMT_NUM) {
+    IP::Addr addr;
+    if (argc != 3 || sscanf(argv[1], IP_ADDR_FMT_STRING,
+                            IP_ADDR_FMT_ARGS(&addr)) != IP_ADDR_FMT_NUM) {
       fprintf(stderr, "Usage: %s <ip> <device>\n", argv[0]);
       return 1;
     }
@@ -17,7 +17,7 @@ public:
     if (!d)
       return 1;
 
-    invoke([&]() { ipv4.addAddr(d, addr); });
+    invoke([&]() { ip.addAddr(d, addr); });
     return 0;
   }
 };
@@ -29,10 +29,10 @@ public:
   int main(int argc, char **argv) override {
     LpmRouting::Entry entry;
     if (argc != 5 ||
-        sscanf(argv[1], IPV4_ADDR_FMT_STRING,
-               IPV4_ADDR_FMT_ARGS(&entry.addr)) != IPV4_ADDR_FMT_NUM ||
-        sscanf(argv[2], IPV4_ADDR_FMT_STRING,
-               IPV4_ADDR_FMT_ARGS(&entry.mask)) != IPV4_ADDR_FMT_NUM ||
+        sscanf(argv[1], IP_ADDR_FMT_STRING,
+               IP_ADDR_FMT_ARGS(&entry.addr)) != IP_ADDR_FMT_NUM ||
+        sscanf(argv[2], IP_ADDR_FMT_STRING,
+               IP_ADDR_FMT_ARGS(&entry.mask)) != IP_ADDR_FMT_NUM ||
         sscanf(argv[4], ETHERNET_ADDR_FMT_STRING,
                ETHERNET_ADDR_FMT_ARGS(&entry.dstMAC)) !=
             ETHERNET_ADDR_FMT_NUM) {

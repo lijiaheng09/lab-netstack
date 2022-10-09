@@ -9,38 +9,38 @@
 #include "log.h"
 #include "utils.h"
 
-#include "IPv4.h"
+#include "IP.h"
 
-constexpr int IPv4::PROTOCOL_ID = ETHERTYPE_IP;
+constexpr int IP::PROTOCOL_ID = ETHERTYPE_IP;
 
-IPv4::IPv4(LinkLayer &linkLayer_)
+IP::IP(LinkLayer &linkLayer_)
     : linkLayer(linkLayer_), routing(nullptr), linkLayerHandler(*this) {}
 
-void IPv4::addAddr(LinkLayer::Device *device, const Addr &addr) {
+void IP::addAddr(LinkLayer::Device *device, const Addr &addr) {
   addrs.push_back({device, addr});
 }
 
-IPv4::LinkLayer::Device *IPv4::findDeviceByAddr(const Addr &addr) {
+IP::LinkLayer::Device *IP::findDeviceByAddr(const Addr &addr) {
   for (auto &&a : addrs)
     if (a.addr == addr)
       return a.device;
   return nullptr;
 }
 
-void IPv4::setRouting(Routing *routing) {
+void IP::setRouting(Routing *routing) {
   this->routing = routing;
 }
 
-int IPv4::sendPacketWithHeader(void *buf, int len) {
+int IP::sendPacketWithHeader(void *buf, int len) {
   Header &header = *(Header *)buf;
   if (len < sizeof(Header)) {
-    ERRLOG("Truncated IPv4 header: %d/%d\n", len, (int)sizeof(Header));
+    ERRLOG("Truncated IP header: %d/%d\n", len, (int)sizeof(Header));
     return -1;
   }
   int hdrLen = (header.versionAndIHL & 0x0f) * 4;
   int packetLen = ntohs(header.totalLength);
   if (len != packetLen || packetLen < hdrLen) {
-    ERRLOG("Invalid IPv4 packet length: %d/%d:%d\n", len, hdrLen, packetLen);
+    ERRLOG("Invalid IP packet length: %d/%d:%d\n", len, hdrLen, packetLen);
     return -1;
   }
 
@@ -51,28 +51,28 @@ int IPv4::sendPacketWithHeader(void *buf, int len) {
 #endif
 
   if (!routing) {
-    ERRLOG("No IPv4 routing policy.\n");
+    ERRLOG("No IP routing policy.\n");
     return -1;
   }
   auto hop = routing->match(header.dst);
   if (!hop.device) {
-    ERRLOG("No IPv4 routing for " IPV4_ADDR_FMT_STRING "\n",
-           IPV4_ADDR_FMT_ARGS(header.dst));
+    ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
+           IP_ADDR_FMT_ARGS(header.dst));
     return -1;
   }
   return hop.device->sendFrame(buf, len, hop.dstMAC, PROTOCOL_ID);
 }
 
-int IPv4::sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
+int IP::sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
                      int protocol) {
   int packetLen = sizeof(Header) + len;
 
   if ((packetLen >> 16) != 0) {
-    ERRLOG("Invalid IPv4 packet length: %d\n", packetLen);
+    ERRLOG("Invalid IP packet length: %d\n", packetLen);
     return -1;
   }
   if ((protocol >> 8) != 0) {
-    ERRLOG("Invalid IPv4 protocol field: %X\n", protocol);
+    ERRLOG("Invalid IP protocol field: %X\n", protocol);
     return -1;
   }
 
@@ -100,27 +100,27 @@ int IPv4::sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
   return rc;
 }
 
-IPv4::RecvCallback::RecvCallback(bool promiscuous_, int protocol_)
+IP::RecvCallback::RecvCallback(bool promiscuous_, int protocol_)
     : promiscuous(promiscuous_), protocol(protocol_) {}
 
-void IPv4::addRecvCallback(RecvCallback *callback) {
+void IP::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
 }
 
-int IPv4::handlePacket(const void *buf, int len) {
+int IP::handlePacket(const void *buf, int len) {
   const Header &header = *(const Header *)buf;
   if (len < sizeof(Header)) {
-    ERRLOG("Truncated IPv4 header: %d/%d\n", len, (int)sizeof(Header));
+    ERRLOG("Truncated IP header: %d/%d\n", len, (int)sizeof(Header));
     return -1;
   }
   int hdrLen = (header.versionAndIHL & 0x0f) * 4;
   int packetLen = ntohs(header.totalLength);
   if (len < packetLen || packetLen < hdrLen) {
-    ERRLOG("Truncated IPv4 packet: %d/%d:%d\n", len, hdrLen, packetLen);
+    ERRLOG("Truncated IP packet: %d/%d:%d\n", len, hdrLen, packetLen);
     return -1;
   }
   if (calcInternetChecksum16(&header, hdrLen) != 0) {
-    ERRLOG("IPv4 Checksum error\n");
+    ERRLOG("IP Checksum error\n");
     return -1;
   }
 
@@ -137,16 +137,16 @@ int IPv4::handlePacket(const void *buf, int len) {
   return rc;
 }
 
-int IPv4::setup() {
+int IP::setup() {
   linkLayer.addRecvCallback(&linkLayerHandler);
   return 0;
 }
 
-IPv4::LinkLayerHandler::LinkLayerHandler(IPv4 &ipv4_)
-    : LinkLayer::RecvCallback(PROTOCOL_ID), ipv4(ipv4_) {}
+IP::LinkLayerHandler::LinkLayerHandler(IP &ip_)
+    : LinkLayer::RecvCallback(PROTOCOL_ID), ip(ip_) {}
 
-int IPv4::LinkLayerHandler::handle(const void *buf, int len,
+int IP::LinkLayerHandler::handle(const void *buf, int len,
                                    LinkLayer::Device *device) {
-  return ipv4.handlePacket(
+  return ip.handlePacket(
       (const unsigned char *)buf + sizeof(LinkLayer::Header), len);
 }

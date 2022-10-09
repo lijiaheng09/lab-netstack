@@ -2,17 +2,17 @@
 #include "commands.h"
 
 class CmdCapturePackets : public Command {
-  class Handler : public IPv4::RecvCallback {
+  class Handler : public IP::RecvCallback {
   public:
-    Handler() : IPv4::RecvCallback(true, -1) {}
+    Handler() : IP::RecvCallback(true, -1) {}
 
     int handle(const void *buf, int len) override {
-      auto &header = *(const IPv4::Header *)buf;
+      auto &header = *(const IP::Header *)buf;
       int protocol = header.protocol;
-      printf("IPv4 Packet length %d\n", len);
-      printf("    dst " IPV4_ADDR_FMT_STRING ", src " IPV4_ADDR_FMT_STRING
+      printf("IP Packet length %d\n", len);
+      printf("    dst " IP_ADDR_FMT_STRING ", src " IP_ADDR_FMT_STRING
              ", protocol 0x%02X, TTL %d\n",
-             IPV4_ADDR_FMT_ARGS(header.dst), IPV4_ADDR_FMT_ARGS(header.src),
+             IP_ADDR_FMT_ARGS(header.dst), IP_ADDR_FMT_ARGS(header.src),
              protocol, header.timeToLive);
 
       return 0;
@@ -23,7 +23,7 @@ public:
   CmdCapturePackets() : Command("capture-packets") {}
 
   int main(int argc, char **argv) override {
-    invoke([&]() { ipv4.addRecvCallback(&handler); });
+    invoke([&]() { ip.addRecvCallback(&handler); });
     return 0;
   }
 };

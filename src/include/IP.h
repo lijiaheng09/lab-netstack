@@ -1,22 +1,22 @@
-#ifndef NETSTACK_IPV4_H
-#define NETSTACK_IPV4_H
+#ifndef NETSTACK_IP_H
+#define NETSTACK_IP_H
 
 #include <cinttypes>
 
 #include "Ethernet.h"
 
-#define IPV4_ADDR_FMT_STRING "%hhu.%hhu.%hhu.%hhu"
-#define IPV4_ADDR_FMT_ARGS(a) a.data[0], a.data[1], a.data[2], a.data[3]
-#define IPV4_ADDR_FMT_NUM 4
+#define IP_ADDR_FMT_STRING "%hhu.%hhu.%hhu.%hhu"
+#define IP_ADDR_FMT_ARGS(a) a.data[0], a.data[1], a.data[2], a.data[3]
+#define IP_ADDR_FMT_NUM 4
 
 /**
- * @brief The IPv4 network service built above `Ethernet` (may be substituted by
+ * @brief The IP network service built above `Ethernet` (may be substituted by
  * other link layers).
- * Can handle receiving IPv4 packets, or send them to the link layer.
+ * Can handle receiving IP packets, or send them to the link layer.
  * Need to set routing policy by setting the `Routing` object.
- * May build services based on IPv4 `protocol` field above it.
+ * May build services based on IP `protocol` field above it.
  */
-class IPv4 {
+class IP {
 public:
   using LinkLayer = Ethernet;   // may be substituted by other link layers
   static const int PROTOCOL_ID; // The corresponding etherType
@@ -50,11 +50,11 @@ public:
 
   LinkLayer &linkLayer;
 
-  IPv4(LinkLayer &linkLayer_);
-  IPv4(const IPv4 &) = delete;
+  IP(LinkLayer &linkLayer_);
+  IP(const IP &) = delete;
 
   /**
-   * @brief Assign an IPv4 address to a device.
+   * @brief Assign an IP address to a device.
    *
    * @param device The link layer device to be set.
    * @param addr The assigned IP address.
@@ -62,7 +62,7 @@ public:
   void addAddr(LinkLayer::Device *device, const Addr &addr);
 
   /**
-   * @brief Find the device by its assigned IPv4 address.
+   * @brief Find the device by its assigned IP address.
    *
    * @param addr The assigned IP address.
    * @return The link layer device found, `nullptr` if not found.
@@ -70,11 +70,11 @@ public:
   LinkLayer::Device *findDeviceByAddr(const Addr &addr);
 
   /**
-   * @brief Implementation of the IPv4 routing policy.
+   * @brief Implementation of the IP routing policy.
    */
   class Routing {
   public:
-    using NetworkLayer = IPv4;
+    using NetworkLayer = IP;
     using LinkLayer = NetworkLayer::LinkLayer;
     using Addr = NetworkLayer::Addr;
 
@@ -84,9 +84,9 @@ public:
     };
 
     /**
-     * @brief Match for the next hop port for an IPv4 packet.
+     * @brief Match for the next hop port for an IP packet.
      *
-     * @param addr The destination IPv4 address of the packet.
+     * @param addr The destination IP address of the packet.
      * @return The port and destination MAC address for the next hop.
      * If no valid routing is found, set `device` to `nullptr`.
      */
@@ -96,12 +96,12 @@ public:
   /**
    * @brief Set the routing policy.
    *
-   * @param routing Pointer to the `IPv4::Routing` object.
+   * @param routing Pointer to the `IP::Routing` object.
    */
   void setRouting(Routing *routing);
 
   /**
-   * @brief Send a complete IPv4 packet (leaving the checksum for
+   * @brief Send a complete IP packet (leaving the checksum for
    * recalculation).
    *
    * @param buf Pointer to the packet (with checksum may be modified).
@@ -112,7 +112,7 @@ public:
   int sendPacketWithHeader(void *buf, int len);
 
   /**
-   * @brief Send an IPv4 packet.
+   * @brief Send an IP packet.
    *
    * @param buf Pointer to the payload.
    * @param len Length of the payload.
@@ -128,18 +128,18 @@ public:
   class RecvCallback {
   public:
     bool promiscuous; // If matches destination IP of other hosts.
-    int protocol;     // The matching IPv4 `protocol` field, -1 for any.
+    int protocol;     // The matching IP `protocol` field, -1 for any.
 
     /**
      * @brief Construct a new RecvCallback object
      *
      * @param promiscuous_ If matches destination IP of other hosts.
-     * @param protocol_ The matching IPv4 `protocol` field, -1 for any.
+     * @param protocol_ The matching IP `protocol` field, -1 for any.
      */
     RecvCallback(bool promiscuous_, int protocol_);
 
     /**
-     * @brief Handle a received IPv4 packet (guaranteed valid).
+     * @brief Handle a received IP packet (guaranteed valid).
      *
      * @param buf Pointer to the packet.
      * @param len Length of the packet.
@@ -153,7 +153,7 @@ public:
   int handlePacket(const void *buf, int len);
 
   /**
-   * @brief Setup the IPv4 network service.
+   * @brief Setup the IP network service.
    *
    * @return 0 on success, negative on error.
    */
@@ -171,10 +171,10 @@ private:
   Vector<RecvCallback *> callbacks;
 
   class LinkLayerHandler : public LinkLayer::RecvCallback {
-    IPv4 &ipv4;
+    IP &ip;
 
   public:
-    LinkLayerHandler(IPv4 &ipv4_);
+    LinkLayerHandler(IP &ip_);
 
     int handle(const void *buf, int len, LinkLayer::Device *device) override;
   } linkLayerHandler;

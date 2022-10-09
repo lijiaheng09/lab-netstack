@@ -1,12 +1,12 @@
 #ifndef NETSTACK_LPM_ROUTING_H
 #define NETSTACK_LPM_ROUTING_H
 
-#include "IPv4.h"
+#include "IP.h"
 
 /**
  * @brief The Longest Prefix Match (LPM) routing table.
  */
-class LpmRouting : public IPv4::Routing {
+class LpmRouting : public IP::Routing {
 public:
   HopInfo match(const Addr &addr) override;
 

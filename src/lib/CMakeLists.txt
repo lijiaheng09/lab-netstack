@@ -7,8 +7,8 @@ add_library(lab-netstack
   utils.cpp
   NetBase.cpp
   Ethernet.cpp
-  IPv4.cpp
-  IPv4Forward.cpp
+  IP.cpp
+  IPForward.cpp
   LpmRouting.cpp
   LoopDispatcher.cpp
 )

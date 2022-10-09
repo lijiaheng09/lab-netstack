@@ -20,8 +20,8 @@ int LpmRouting::setEntry(const Entry &entry) {
     uint8_t x = entry.mask.data[i];
     uint8_t lowbit = x & (~x + 1);
     if ((!inPrefix && x != 0) || (uint8_t)(x + lowbit) != 0) {
-      ERRLOG("Invalid prefix mask: " IPV4_ADDR_FMT_STRING "\n",
-             IPV4_ADDR_FMT_ARGS(entry.mask));
+      ERRLOG("Invalid prefix mask: " IP_ADDR_FMT_STRING "\n",
+             IP_ADDR_FMT_ARGS(entry.mask));
       return 1;
     }
     if (x != 0xFF)

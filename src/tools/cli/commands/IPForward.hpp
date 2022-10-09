@@ -7,9 +7,9 @@ public:
 
   int main(int argc, char **argv) override {
     int rc;
-    invoke([&]() { rc = ipv4Forward.setup(); });
+    invoke([&]() { rc = ipForward.setup(); });
     if (rc != 0)
-      fprintf(stderr, "Error setting up IPv4 forwarding\n");
+      fprintf(stderr, "Error setting up IP forwarding\n");
     return rc;
   }
 };

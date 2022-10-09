@@ -7,16 +7,16 @@
 
 #include "NetBase.h"
 #include "Ethernet.h"
-#include "IPv4.h"
-#include "IPv4Forward.h"
+#include "IP.h"
+#include "IPForward.h"
 #include "LpmRouting.h"
 
 extern NetBase netBase;
 extern Ethernet ethernet;
-extern IPv4 ipv4;
+extern IP ip;
 extern LpmRouting routing;
 
-extern IPv4Forward ipv4Forward;
+extern IPForward ipForward;
 
 extern std::thread *netThread;
 extern LoopDispatcher loopDispatcher;

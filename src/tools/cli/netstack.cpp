@@ -4,10 +4,10 @@
 
 NetBase netBase;
 Ethernet ethernet(netBase);
-IPv4 ipv4(ethernet);
+IP ip(ethernet);
 LpmRouting routing;
 
-IPv4Forward ipv4Forward(ipv4);
+IPForward ipForward(ip);
 
 std::thread *netThread = nullptr;
 LoopDispatcher loopDispatcher;
@@ -43,11 +43,11 @@ int initNetStack() {
   int rc;
 
   if ((rc = netBase.setup()) != 0 || (rc = ethernet.setup()) != 0 ||
-      (rc = ipv4.setup()) != 0) {
+      (rc = ip.setup()) != 0) {
     return 1;
   }
 
-  ipv4.setRouting(&routing);
+  ip.setRouting(&routing);
   netBase.addLoopCallback(&loopDispatcher);
 
   return startLoop();
