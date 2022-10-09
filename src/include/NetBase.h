@@ -64,15 +64,21 @@ public:
      */
     RecvCallback(int linkType_);
 
+    struct Info {
+      timeval ts;
+    };
+
     /**
      * @brief Handle a received frame.
      *
      * @param buf Pointer to the frame.
      * @param len Length of the frame.
      * @param device The receiving device.
+     * @param info Other information of the received frame.
      * @return 0 on success, negative on error.
      */
-    virtual int handle(const void *buf, int len, Device *device) = 0;
+    virtual int handle(const void *buf, int len, Device *device,
+                       const Info &info) = 0;
   };
 
   /**
@@ -89,9 +95,11 @@ public:
    * @param buf Pointer to the frame.
    * @param len Length of the frame.
    * @param device The device receiving the frame.
+   * @param info Other information of the received frame.
    * @return 0 on success, negative on error.
    */
-  int handleFrame(const void *buf, int len, Device *device);
+  int handleFrame(const void *buf, int len, Device *device,
+                  RecvCallback::Info info);
 
   /**
    * @brief Setup the netstack base.

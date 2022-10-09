@@ -57,7 +57,7 @@ class CmdCaptureFrames : public Command {
   public:
     Handler() : Ethernet::RecvCallback(-1) {}
 
-    int handle(const void *buf, int len, Ethernet::Device *device) override {
+    int handle(const void *buf, int len, Ethernet::Device *device, const Info &info) override {
       const auto &header = *(const Ethernet::Header *)buf;
       int etherType = ntohs(header.etherType);
       printf("Frame length %d from device %s\n", len, device->name);

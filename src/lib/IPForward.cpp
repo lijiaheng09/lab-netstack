@@ -17,7 +17,7 @@ int IPForward::setup() {
 IPForward::IPHandler::IPHandler(IPForward &ipForward_)
     : IP::RecvCallback(true, -1), ipForward(ipForward_) {}
 
-int IPForward::IPHandler::handle(const void *buf, int len) {
+int IPForward::IPHandler::handle(const void *buf, int len, const Info &info) {
   const auto &origHeader = *(const IP::Header *)buf;
 
   if (ipForward.ip.findDeviceByAddr(origHeader.dst)) {

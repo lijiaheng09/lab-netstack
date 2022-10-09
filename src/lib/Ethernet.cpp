@@ -129,22 +129,6 @@ void Ethernet::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
 }
 
-int Ethernet::handleFrame(const void *buf, int len, Device *device) {
-  if (len < sizeof(Header)) {
-    ERRLOG("Truncated Ethernet header (device %s): %d/%d\n", device->name, len,
-           (int)sizeof(Header));
-    return -1;
-  }
-  const Header &h = *(const Header *)buf;
-  int etherType = ntohs(h.etherType);
-  int rc = 0;
-  for (auto *c : callbacks)
-    if (c->etherType == -1 || c->etherType == etherType)
-      if (c->handle(buf, len, device) != 0)
-        rc = -1;
-  return rc;
-}
-
 int Ethernet::setup() {
   netBase.addRecvCallback(&netBaseHandler);
   return 0;
@@ -154,9 +138,28 @@ Ethernet::NetBaseHandler::NetBaseHandler(Ethernet &ethernet_)
     : NetBase::RecvCallback(LINK_TYPE), ethernet(ethernet_) {}
 
 int Ethernet::NetBaseHandler::handle(const void *buf, int len,
-                                     NetBase::Device *device) {
-  if (auto *d = dynamic_cast<Device *>(device))
-    return ethernet.handleFrame(buf, len, d);
-  ERRLOG("Unconfigured Ethernet device: %s\n", device->name);
-  return -1;
+                                     NetBase::Device *device,
+                                     const Info &info) {
+  auto *d = dynamic_cast<Device *>(device);
+  if (!d) {
+    ERRLOG("Unconfigured Ethernet device: %s\n", device->name);
+    return -1;
+  }
+
+  if (len < sizeof(Header)) {
+    ERRLOG("Truncated Ethernet header (device %s): %d/%d\n", device->name, len,
+           (int)sizeof(Header));
+    return -1;
+  }
+
+  RecvCallback::Info newInfo(info);
+
+  const Header &h = *(const Header *)buf;
+  int etherType = ntohs(h.etherType);
+  int rc = 0;
+  for (auto *c : ethernet.callbacks)
+    if (c->etherType == -1 || c->etherType == etherType)
+      if (c->handle(buf, len, d, newInfo) != 0)
+        rc = -1;
+  return rc;
 }

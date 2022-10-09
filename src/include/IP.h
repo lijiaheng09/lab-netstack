@@ -9,6 +9,8 @@
 #define IP_ADDR_FMT_ARGS(a) a.data[0], a.data[1], a.data[2], a.data[3]
 #define IP_ADDR_FMT_NUM 4
 
+class ICMP;
+
 /**
  * @brief The IP network service built above `Ethernet` (may be substituted by
  * other link layers).
@@ -50,8 +52,11 @@ public:
 
   LinkLayer &linkLayer;
 
+  ICMP &icmp;
+
   IP(LinkLayer &linkLayer_);
   IP(const IP &) = delete;
+  ~IP();
 
   /**
    * @brief Assign an IP address to a device.
@@ -138,19 +143,34 @@ public:
      */
     RecvCallback(bool promiscuous_, int protocol_);
 
+    struct Info : LinkLayer::RecvCallback::Info {
+      const LinkLayer::Header *linkHeader;
+      LinkLayer::Device *linkDevice;
+
+      LinkLayer::Device *endDevice;
+
+      Info(const LinkLayer::RecvCallback::Info &info_)
+          : LinkLayer::RecvCallback::Info(info_) {}
+    };
+
     /**
      * @brief Handle a received IP packet (guaranteed valid).
      *
      * @param buf Pointer to the packet.
      * @param len Length of the packet.
+     * @param info Other information of the received packet.
      * @return 0 on success, negative on error.
      */
-    virtual int handle(const void *buf, int len) = 0;
+    virtual int handle(const void *buf, int len, const Info &info) = 0;
   };
 
+  /**
+   * @brief Register a callback on receiving IP packets.
+   *
+   * @param callback Pointer to a `RecvCallback` object (which need to be
+   * persistent).
+   */
   void addRecvCallback(RecvCallback *callback);
-
-  int handlePacket(const void *buf, int len);
 
   /**
    * @brief Setup the IP network service.
@@ -176,7 +196,8 @@ private:
   public:
     LinkLayerHandler(IP &ip_);
 
-    int handle(const void *buf, int len, LinkLayer::Device *device) override;
+    int handle(const void *buf, int len, LinkLayer::Device *device,
+               const Info &info) override;
   } linkLayerHandler;
 };
 

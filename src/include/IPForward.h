@@ -25,7 +25,7 @@ private:
     IPForward &ipForward;
   public:
     IPHandler(IPForward &ipForward_);
-    int handle(const void *buf, int len);
+    int handle(const void *buf, int len, const Info &info);
   } ipHandler;
 };
 

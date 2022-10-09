@@ -57,7 +57,7 @@ class RecvHandler : public Ethernet::RecvCallback {
 public:
   RecvHandler() : Ethernet::RecvCallback(-1) {}
 
-  int handle(const void *buf, int len, Ethernet::Device *d) override {
+  int handle(const void *buf, int len, Ethernet::Device *d, const Info &info) override {
     int id = d->id;
     ether_addr *srcAddrp = (ether_addr *)((char *)buf + ETHER_ADDR_LEN);
     uint16_t *ethtypeNetp = (uint16_t *)((char *)buf + ETHER_ADDR_LEN * 2);

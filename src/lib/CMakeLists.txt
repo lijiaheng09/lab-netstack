@@ -8,6 +8,7 @@ add_library(lab-netstack
   NetBase.cpp
   Ethernet.cpp
   IP.cpp
+  ICMP.cpp
   IPForward.cpp
   LpmRouting.cpp
   LoopDispatcher.cpp

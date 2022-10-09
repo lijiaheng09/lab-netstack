@@ -41,11 +41,12 @@ void NetBase::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
 }
 
-int NetBase::handleFrame(const void *buf, int len, Device *device) {
+int NetBase::handleFrame(const void *buf, int len, Device *device,
+                         RecvCallback::Info info) {
   int rc = 0;
   for (auto *c : callbacks)
     if (c->linkType == -1 || device->linkType == c->linkType)
-      if (c->handle(buf, len, device) != 0)
+      if (c->handle(buf, len, device, info) != 0)
         rc = -1;
   return rc;
 }
@@ -72,7 +73,8 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
     return;
   }
 
-  args.netBase->handleFrame(bytes, h->len, args.device);
+  NetBase::RecvCallback::Info info = {ts : h->ts};
+  args.netBase->handleFrame(bytes, h->len, args.device, info);
 }
 
 void NetBase::addLoopCallback(LoopCallback *callback) {

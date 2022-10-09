@@ -6,7 +6,7 @@ class CmdCapturePackets : public Command {
   public:
     Handler() : IP::RecvCallback(true, -1) {}
 
-    int handle(const void *buf, int len) override {
+    int handle(const void *buf, int len, const Info &info) override {
       auto &header = *(const IP::Header *)buf;
       int protocol = header.protocol;
       printf("IP Packet length %d\n", len);

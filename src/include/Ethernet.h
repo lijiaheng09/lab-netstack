@@ -84,15 +84,22 @@ public:
      */
     RecvCallback(int etherType_);
 
+    struct Info : public NetBase::RecvCallback::Info {
+      Info(const NetBase::RecvCallback::Info &base)
+          : NetBase::RecvCallback::Info(base) {}
+    };
+
     /**
      * @brief Handle a received Ethernet frame (guaranteed valid).
      *
      * @param buf Pointer to the frame.
      * @param len Length of the frame.
      * @param device The receiving device.
+     * @param info Other information of the received frame.
      * @return 0 on success, negative on error.
      */
-    virtual int handle(const void *buf, int len, Device *device) = 0;
+    virtual int handle(const void *buf, int len, Device *device,
+                       const Info &info) = 0;
   };
 
   /**
@@ -102,16 +109,6 @@ public:
    * persistent).
    */
   void addRecvCallback(RecvCallback *callback);
-
-  /**
-   * @brief Handle a receiving frame; dispatch it to registered callbacks.
-   *
-   * @param buf Pointer to the frame.
-   * @param len Length of the frame.
-   * @param device The receiving device.
-   * @return 0 on success, negative on error.
-   */
-  int handleFrame(const void *buf, int len, Device *device);
 
   /**
    * @brief Setup the Ethernet link layer service.
@@ -126,7 +123,8 @@ private:
 
   public:
     NetBaseHandler(Ethernet &ethernet_);
-    int handle(const void *buf, int len, NetBase::Device *device) override;
+    int handle(const void *buf, int len, NetBase::Device *device,
+               const Info &info) override;
   } netBaseHandler;
 
   Vector<RecvCallback *> callbacks;
