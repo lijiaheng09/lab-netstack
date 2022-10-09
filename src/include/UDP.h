@@ -85,6 +85,14 @@ public:
   void addRecvCallback(RecvCallback *callback);
 
   /**
+   * @brief Remove a registered receiving callback.
+   *
+   * @param callback Pointer to the `RecvCallback` object.
+   * @return 0 on success, 1 if no such callback.
+   */
+  int removeRecvCallback(RecvCallback *callback);
+
+  /**
    * @brief Setup the UDP transport service.
    *
    * @return 0 on success, negative on error.

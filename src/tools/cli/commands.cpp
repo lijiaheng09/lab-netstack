@@ -15,6 +15,7 @@ Command::~Command() {
 #include "commands/PacketIO.hpp"
 #include "commands/IPConfig.hpp"
 #include "commands/IPForward.hpp"
+#include "commands/UdpIO.hpp"
 
 std::vector<Command *> allCommands = {
   new CmdAddDevice(),
@@ -25,5 +26,7 @@ std::vector<Command *> allCommands = {
   new CmdCapturePackets(),
   new CmdIPAddrAdd(),
   new CmdRouteAdd(),
-  new CmdIPForward()
+  new CmdIPForward(),
+  new CmdNcUdpListen(),
+  new CmdNcUdp()
 };

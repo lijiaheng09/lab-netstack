@@ -6,6 +6,7 @@ NetBase netBase;
 Ethernet ethernet(netBase);
 IP ip(ethernet);
 LpmRouting routing;
+UDP udp(ip);
 
 IPForward ipForward(ip);
 
@@ -43,8 +44,8 @@ int initNetStack() {
   int rc;
 
   if ((rc = netBase.setup()) != 0 || (rc = ethernet.setup()) != 0 ||
-      (rc = ip.setup()) != 0) {
-    return 1;
+      (rc = ip.setup()) != 0 || (rc = udp.setup()) != 0) {
+    return rc;
   }
 
   ip.setRouting(&routing);

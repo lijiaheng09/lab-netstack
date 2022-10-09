@@ -61,8 +61,19 @@ int UDP::sendSegment(const void *data, int dataLen,
   return rc;
 }
 
+UDP::RecvCallback::RecvCallback(int port_) : port(port_) {}
+
 void UDP::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
+}
+
+int UDP::removeRecvCallback(RecvCallback *callback) {
+  for (auto it = callbacks.begin(); it != callbacks.end(); it++)
+    if (*it == callback) {
+      callbacks.erase(it);
+      return 0;
+    }
+  return 1;
 }
 
 int UDP::setup() {
@@ -73,20 +84,20 @@ int UDP::setup() {
 static uint16_t calcUdpChecksum(const UDP::PseudoNetworkHeader &pseudoHeader,
                                 const void *data, int len) {
   const uint8_t *d0 = (const uint8_t *)&pseudoHeader;
-  const uint8_t *d = (const uint8_t *)data;
+  const uint8_t *d1 = (const uint8_t *)data;
   uint32_t sum = 0;
   for (int i = 0; i + 1 < sizeof(UDP::PseudoNetworkHeader); i += 2) {
-    uint16_t x = ((uint16_t)d0[i] << 8 | d[i + 1]);
+    uint16_t x = ((uint16_t)d0[i] << 8 | d0[i + 1]);
     sum += x;
     sum = (sum + (sum >> 16)) & 0xFFFF;
   }
   for (int i = 0; i + 1 < len; i += 2) {
-    uint16_t x = ((uint16_t)d[i] << 8 | d[i + 1]);
+    uint16_t x = ((uint16_t)d1[i] << 8 | d1[i + 1]);
     sum += x;
     sum = (sum + (sum >> 16)) & 0xFFFF;
   }
   if (len % 2 != 0) {
-    sum += (uint16_t)d[len - 1] << 8;
+    sum += (uint16_t)d1[len - 1] << 8;
     sum = (sum + (sum >> 16)) & 0xFFFF;
   }
   return htons(~sum);

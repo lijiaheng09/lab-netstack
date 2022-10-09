@@ -147,7 +147,7 @@ int IP::setup() {
 
 const void *IP::stripHeader(const void *packet, int &len) {
   const Header &header = *(const Header *)packet;
-  int hdrLen = (header.versionAndIHL & 0x0F) * 5;
+  int hdrLen = (header.versionAndIHL & 0x0F) * 4;
   len = ntohs(header.totalLength) - hdrLen;
   return (const unsigned char *)packet + hdrLen;
 }

@@ -26,7 +26,7 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
   IP::Addr src;
   int rc = ip.getAnyAddr(info.linkDevice, src);
   if (rc < 0) {
-    ERRLOG("No IP address of the host.\n");
+    ERRLOG("No IP address on the host.\n");
     return rc;
   }
 
