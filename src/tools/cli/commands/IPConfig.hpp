@@ -13,13 +13,11 @@ public:
       return 1;
     }
 
-    auto *d = ethernet.findDeviceByName(argv[2]);
-    if (!d) {
-      fprintf(stderr, "Device not found: %s\n", argv[2]);
+    auto *d = findDeviceByName(argv[2]);
+    if (!d)
       return 1;
-    }
 
-    ipv4.addAddr(d, addr);
+    invoke([&]() { ipv4.addAddr(d, addr); });
     return 0;
   }
 };
@@ -31,23 +29,24 @@ public:
   int main(int argc, char **argv) override {
     LpmRouting::Entry entry;
     if (argc != 5 ||
-        sscanf(argv[1], IPV4_ADDR_FMT_STRING, IPV4_ADDR_FMT_ARGS(&entry.addr)) !=
-            IPV4_ADDR_FMT_NUM ||
-        sscanf(argv[2], IPV4_ADDR_FMT_STRING, IPV4_ADDR_FMT_ARGS(&entry.mask)) !=
-            IPV4_ADDR_FMT_NUM ||
+        sscanf(argv[1], IPV4_ADDR_FMT_STRING,
+               IPV4_ADDR_FMT_ARGS(&entry.addr)) != IPV4_ADDR_FMT_NUM ||
+        sscanf(argv[2], IPV4_ADDR_FMT_STRING,
+               IPV4_ADDR_FMT_ARGS(&entry.mask)) != IPV4_ADDR_FMT_NUM ||
         sscanf(argv[4], ETHERNET_ADDR_FMT_STRING,
-              ETHERNET_ADDR_FMT_ARGS(&entry.dstMAC)) != ETHERNET_ADDR_FMT_NUM) {
+               ETHERNET_ADDR_FMT_ARGS(&entry.dstMAC)) !=
+            ETHERNET_ADDR_FMT_NUM) {
       fprintf(stderr, "usage: %s <ip> <mask> <device> <dstMAC>\n", argv[0]);
       return 1;
     }
 
-    entry.device = ethernet.findDeviceByName(argv[3]);
-    if (!entry.device) {
-      fprintf(stderr, "device not found: %s\n", argv[3]);
+    entry.device = findDeviceByName(argv[3]);
+    if (!entry.device)
       return 1;
-    }
 
-    if (routing.setEntry(entry) != 0) {
+    int rc;
+    invoke([&]() { rc = routing.setEntry(entry); });
+    if (rc != 0) {
       fprintf(stderr, "Error setting routing entry.");
       return 1;
     }

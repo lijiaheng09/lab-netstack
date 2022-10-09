@@ -91,5 +91,6 @@ int main(int argc, char **argv) {
       }
     }
   }
+  stopNetStack();
   return 0;
 }

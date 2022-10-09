@@ -26,11 +26,9 @@ public:
       return 1;
     }
 
-    auto *d = ethernet.findDeviceByName(argv[1]);
-    if (!d) {
-      fprintf(stderr, "Device not found: %s\n", argv[1]);
+    auto *d = findDeviceByName(argv[1]);
+    if (!d)
       return 1;
-    }
 
     int rLen = strlen(argv[4]);
     int len = rLen + padding;
@@ -42,12 +40,14 @@ public:
     memcpy(data, argv[4], rLen);
     memset(data + rLen, 0, padding);
 
-    int ret = d->sendFrame(data, len, dstMAC, etherType);
+    int rc;
+    invoke([&]() { rc = d->sendFrame(data, len, dstMAC, etherType); });
+
     free(data);
-    if (ret != 0) {
+    if (rc != 0) {
+      fprintf(stderr, "Error sending frame.\n");
       return 1;
     }
-
     return 0;
   }
 };
@@ -74,7 +74,7 @@ public:
   CmdCaptureFrames() : Command("capture-frames") {}
 
   int main(int argc, char **argv) override {
-    ethernet.addRecvCallback(&handler);
+    invoke([&]() { ethernet.addRecvCallback(&handler); });
     return 0;
   }
 };

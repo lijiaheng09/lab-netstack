@@ -84,6 +84,7 @@ Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
   }
 
   pcap_t *p = pcap_create(name, errbuf);
+  Ethernet::Device *d;
   if (!p) {
     ERRLOG("pcap_create(device %s) error: %s\n", name, errbuf);
     return nullptr;
@@ -91,19 +92,31 @@ Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
   rc = pcap_set_immediate_mode(p, 1);
   if (rc != 0) {
     ERRLOG("pcap_set_immediate(device %s) error: %s\n", name, pcap_geterr(p));
-    pcap_close(p);
-    return nullptr;
+    goto CLOSE;
+  }
+  rc = pcap_setnonblock(p, 1, errbuf);
+  if (rc != 0) {
+    ERRLOG("pcap_setnonblock(device %s) error: %s\n", name, errbuf);
+    goto CLOSE;
   }
   rc = pcap_activate(p);
   if (rc != 0) {
     ERRLOG("pcap_activate(device %s) error: %s\n", name, pcap_geterr(p));
-    pcap_close(p);
-    return nullptr;
+    goto CLOSE;
+  }
+  rc = pcap_setdirection(p, PCAP_D_IN);
+  if (rc != 0) {
+    ERRLOG("pcap_setdirection(device %s) error: %s\n", name, pcap_geterr(p));
+    goto CLOSE;
   }
 
-  auto *d = new Device(p, name, addr);
+  d = new Device(p, name, addr);
   netBase.addDevice(d);
   return d;
+
+CLOSE:
+  pcap_close(p);
+  return nullptr;
 }
 
 Ethernet::Device *Ethernet::findDeviceByName(const char *name) {
@@ -141,7 +154,7 @@ Ethernet::NetBaseHandler::NetBaseHandler(Ethernet &ethernet_)
     : NetBase::RecvCallback(LINK_TYPE), ethernet(ethernet_) {}
 
 int Ethernet::NetBaseHandler::handle(const void *buf, int len,
-                                      NetBase::Device *device) {
+                                     NetBase::Device *device) {
   if (auto *d = dynamic_cast<Device *>(device))
     return ethernet.handleFrame(buf, len, d);
   ERRLOG("Unconfigured Ethernet device: %s\n", device->name);

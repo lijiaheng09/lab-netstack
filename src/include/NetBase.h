@@ -2,6 +2,7 @@
 #define NETSTACK_NET_STACK_H
 
 #include "utils.h"
+#include "LoopDispatcher.h"
 
 /**
  * @brief Base of the netstack, handling sending & receiving of pcap devices.
@@ -100,15 +101,24 @@ public:
   int setup();
 
   /**
+   * @brief Register a callback in `loop`.
+   *
+   * @param callback Pointer to an `Action` object to be invoked (which need to
+   * be persistent).
+   */
+  void addLoopCallback(LoopCallback *callback);
+
+  /**
    * @brief Start to loop for receiving.
    *
-   * @return negative on error.
+   * @return 0 if breaked by callback, negative on error.
    */
   int loop();
 
 private:
   Vector<Device *> devices;
   Vector<RecvCallback *> callbacks;
+  Vector<LoopCallback *> loopCallbacks;
 };
 
 #endif

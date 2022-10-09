@@ -75,23 +75,11 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
   args.netBase->handleFrame(bytes, h->len, args.device);
 }
 
-int NetBase::loop() {
-  char errbuf[PCAP_ERRBUF_SIZE];
-  for (auto *d : devices) {
-    int rc;
-    rc = pcap_setnonblock(d->p, 1, errbuf);
-    if (rc != 0) {
-      ERRLOG("pcap_setnonblock(device %s) error: %s\n", d->name, errbuf);
-      return rc;
-    }
-    rc = pcap_setdirection(d->p, PCAP_D_IN);
-    if (rc != 0) {
-      ERRLOG("pcap_setdirection(device %s) error: %s\n", d->name,
-             pcap_geterr(d->p));
-      return rc;
-    }
-  }
+void NetBase::addLoopCallback(LoopCallback *callback) {
+  loopCallbacks.push_back(callback);
+}
 
+int NetBase::loop() {
   while (1) {
     for (auto *d : devices) {
       PcapHandleArgs args{netBase : this, device : d};
@@ -102,6 +90,14 @@ int NetBase::loop() {
                  pcap_geterr(d->p));
         return rc;
       }
+    }
+
+    for (auto *c : loopCallbacks) {
+      int rc = c->handle();
+      if (rc < 0)
+        return rc;
+      else if (rc > 0)
+        return 0;
     }
   }
 

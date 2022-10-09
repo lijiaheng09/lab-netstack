@@ -1,4 +1,5 @@
 #include "netstack.h"
+#include "common.h"
 #include "commands.h"
 
 class CmdAddDevice : public Command {
@@ -11,8 +12,11 @@ public:
       return 1;
     }
 
-    auto *d = ethernet.addDeviceByName(argv[1]);
+    Ethernet::Device *d;
+    invoke([&]() { d = ethernet.addDeviceByName(argv[1]); });
+
     if (!d) {
+      fprintf(stderr, "Error adding device: %s\n", argv[1]);
       return 1;
     }
     printf("Device added: %s\n", d->name);
@@ -33,11 +37,9 @@ public:
       return 1;
     }
 
-    auto *d = ethernet.findDeviceByName(argv[1]);
-    if (!d) {
-      printf("Device not found: %s\n", argv[1]);
+    auto *d = findDeviceByName(argv[1]);
+    if (!d)
       return 1;
-    }
     printf("Device found: %s\n", d->name);
     printf("    ether " ETHERNET_ADDR_FMT_STRING "\n",
            ETHERNET_ADDR_FMT_ARGS(d->addr));

@@ -10,6 +10,7 @@ add_library(lab-netstack
   IPv4.cpp
   IPv4Forward.cpp
   LpmRouting.cpp
+  LoopDispatcher.cpp
 )
 
 target_link_libraries(lab-netstack PRIVATE pcap)
