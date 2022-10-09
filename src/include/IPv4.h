@@ -3,18 +3,23 @@
 
 #include <cinttypes>
 
-#include <netinet/ip.h>
-
 #include "Ethernet.h"
 
 #define IPV4_ADDR_FMT_STRING "%hhu.%hhu.%hhu.%hhu"
 #define IPV4_ADDR_FMT_ARGS(a) a.data[0], a.data[1], a.data[2], a.data[3]
 #define IPV4_ADDR_FMT_NUM 4
 
+/**
+ * @brief The IPv4 network service built above `Ethernet` (may be substituted by
+ * other link layers).
+ * Can handle receiving IPv4 packets, or send them to the link layer.
+ * Need to set routing policy by setting the `Routing` object.
+ * May build services based on IPv4 `protocol` field above it.
+ */
 class IPv4 {
 public:
-  using LinkLayer = Ethernet;
-  static const int PROTOCOL_ID;
+  using LinkLayer = Ethernet;   // may be substituted by other link layers
+  static const int PROTOCOL_ID; // The corresponding etherType
 
   struct Addr {
     unsigned char data[4];
@@ -51,21 +56,22 @@ public:
   /**
    * @brief Assign an IPv4 address to a device.
    *
-   * @param device Pointer to the `LinkLayer::Device` object describing the
-   * device.
-   * @param addr The assigned address.
+   * @param device The link layer device to be set.
+   * @param addr The assigned IP address.
    */
   void addAddr(LinkLayer::Device *device, const Addr &addr);
 
   /**
-   * @brief Find the device by assigned IPv4 address.
+   * @brief Find the device by its assigned IPv4 address.
    *
-   * @param addr The assigned address.
-   * @return Pointer to the `LinkLayer::Device` object describing the
-   * corresponding device, `nullptr` if not found.
+   * @param addr The assigned IP address.
+   * @return The link layer device found, `nullptr` if not found.
    */
   LinkLayer::Device *findDeviceByAddr(const Addr &addr);
 
+  /**
+   * @brief Implementation of the IPv4 routing policy.
+   */
   class Routing {
   public:
     using NetworkLayer = IPv4;
@@ -81,22 +87,22 @@ public:
      * @brief Match for the next hop port for an IPv4 packet.
      *
      * @param addr The destination IPv4 address of the packet.
-     * @return A `Routing::HopInfo` structure, including the port and
-     * destination MAC address for the next hop.
-     * If no valid routing is found, set device to `nullptr`.
+     * @return The port and destination MAC address for the next hop.
+     * If no valid routing is found, set `device` to `nullptr`.
      */
     virtual HopInfo match(const Addr &addr) = 0;
   };
 
   /**
-   * @brief Set the routing table.
+   * @brief Set the routing policy.
    *
-   * @param routing_ Pointer to the `IPv4::Routing` object.
+   * @param routing Pointer to the `IPv4::Routing` object.
    */
-  void setRouting(Routing *routing_);
+  void setRouting(Routing *routing);
 
   /**
-   * @brief Send an IPv4 packet (leaving the checksum for recalculation).
+   * @brief Send a complete IPv4 packet (leaving the checksum for
+   * recalculation).
    *
    * @param buf Pointer to the packet (with checksum may be modified).
    * @param len Length of the packet.
@@ -110,8 +116,8 @@ public:
    *
    * @param buf Pointer to the payload.
    * @param len Length of the payload.
-   * @param src IPv4 address of the source host.
-   * @param dst IPv4 address of the destination host.
+   * @param src IP address of the source host.
+   * @param dst IP address of the destination host.
    * @param protocol The `protocol` field of the packet.
    *
    * @return 0 on success, negative on error.
@@ -147,7 +153,7 @@ public:
   int handlePacket(const void *buf, int len);
 
   /**
-   * @brief Setup the IPv4 Layer.
+   * @brief Setup the IPv4 network service.
    *
    * @return 0 on success, negative on error.
    */
@@ -156,7 +162,7 @@ public:
 private:
   class DevAddr {
   public:
-    LinkLayer::Device *dev;
+    LinkLayer::Device *device;
     Addr addr;
   };
   Vector<DevAddr> addrs;
@@ -165,10 +171,10 @@ private:
   Vector<RecvCallback *> callbacks;
 
   class LinkLayerHandler : public LinkLayer::RecvCallback {
-    IPv4 &ipv4Layer;
+    IPv4 &ipv4;
 
   public:
-    LinkLayerHandler(IPv4 &ipv4Layer_);
+    LinkLayerHandler(IPv4 &ipv4_);
 
     int handle(const void *buf, int len, LinkLayer::Device *device) override;
   } linkLayerHandler;

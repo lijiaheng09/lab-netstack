@@ -28,6 +28,12 @@ int LpmRouting::setEntry(const Entry &entry) {
       inPrefix = false;
   }
 
+  for (auto &e : table)
+    if (e.addr == entry.addr && e.mask == entry.mask) {
+      e = entry;
+      return 0;
+    }
+
   table.push_back(entry);
   return 0;
 }

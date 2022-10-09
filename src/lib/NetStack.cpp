@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cstdlib>
 
 #include <pcap/pcap.h>
 
@@ -7,17 +8,18 @@
 #include "NetStack.h"
 
 NetStack::Device::Device(pcap_t *p_, const char *name_, int linkType_)
-    : p(p_), id(-1), name(new char[strlen(name_) + 1]), linkType(linkType_) {
-  strcpy(name, name_);
-}
+    : p(p_), id(-1), name(strdup(name_)), linkType(linkType_) {}
 
 NetStack::Device::~Device() {
   pcap_close(p);
-  delete[] name;
+  free(name);
 }
 
 int NetStack::Device::sendFrame(const void *buf, int len) {
-  return pcap_sendpacket(p, (u_char *)buf, len);
+  int rc = pcap_sendpacket(p, (u_char *)buf, len);
+  if (rc != 0)
+    ERRLOG("pcap_sendpacket(device %s) error: %s\n", name, pcap_geterr(p));
+  return rc;
 }
 
 int NetStack::addDevice(Device *device) {
@@ -57,7 +59,7 @@ int NetStack::setup() {
 }
 
 struct PcapHandleArgs {
-  NetStack *stack;
+  NetStack *netstack;
   NetStack::Device *device;
 };
 
@@ -70,22 +72,21 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
     return;
   }
 
-  args.stack->handleFrame((const void *)bytes, h->len, args.device);
+  args.netstack->handleFrame((const void *)bytes, h->len, args.device);
 }
 
 int NetStack::loop() {
   char errbuf[PCAP_ERRBUF_SIZE];
   for (auto *d : devices) {
     int rc;
-
     rc = pcap_setnonblock(d->p, 1, errbuf);
     if (rc != 0) {
-      ERRLOG("pcap_setnonblock (device %s) error: %s\n", d->name, errbuf);
+      ERRLOG("pcap_setnonblock(device %s) error: %s\n", d->name, errbuf);
       return rc;
     }
     rc = pcap_setdirection(d->p, PCAP_D_IN);
     if (rc != 0) {
-      ERRLOG("pcap_setdirection (device %s) error: %s\n", d->name,
+      ERRLOG("pcap_setdirection(device %s) error: %s\n", d->name,
              pcap_geterr(d->p));
       return rc;
     }
@@ -93,7 +94,7 @@ int NetStack::loop() {
 
   while (1) {
     for (auto *d : devices) {
-      PcapHandleArgs args{stack : this, device : d};
+      PcapHandleArgs args{netstack : this, device : d};
       int rc = pcap_dispatch(d->p, -1, handlePcap, (u_char *)&args);
       if (rc < 0) {
         if (rc == PCAP_ERROR)

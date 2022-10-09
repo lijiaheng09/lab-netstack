@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include <netinet/ether.h>
+#include <arpa/inet.h>
 
 #include "log.h"
 #include "utils.h"
@@ -22,12 +23,12 @@ void IPv4::addAddr(LinkLayer::Device *device, const Addr &addr) {
 IPv4::LinkLayer::Device *IPv4::findDeviceByAddr(const Addr &addr) {
   for (auto &&a : addrs)
     if (a.addr == addr)
-      return a.dev;
+      return a.device;
   return nullptr;
 }
 
-void IPv4::setRouting(Routing *routing_) {
-  routing = routing_;
+void IPv4::setRouting(Routing *routing) {
+  this->routing = routing;
 }
 
 int IPv4::sendPacketWithHeader(void *buf, int len) {
@@ -50,7 +51,7 @@ int IPv4::sendPacketWithHeader(void *buf, int len) {
 #endif
 
   if (!routing) {
-    ERRLOG("No IPv4 routing table.\n");
+    ERRLOG("No IPv4 routing policy.\n");
     return -1;
   }
   auto hop = routing->match(header.dst);
@@ -128,7 +129,7 @@ int IPv4::handlePacket(const void *buf, int len) {
   int rc = 0;
   for (auto *c : callbacks)
     if (c->promiscuous || endDevice) {
-      if (c->protocol == -1 || c->protocol == header.protocol) {
+      if (c->protocol == -1 || c->protocol == protocol) {
         if (c->handle(buf, packetLen))
           rc = -1;
       }
@@ -141,11 +142,12 @@ int IPv4::setup() {
   return 0;
 }
 
-IPv4::LinkLayerHandler::LinkLayerHandler(IPv4 &ipv4Layer_)
-    : LinkLayer::RecvCallback(PROTOCOL_ID), ipv4Layer(ipv4Layer_) {}
+IPv4::LinkLayerHandler::LinkLayerHandler(IPv4 &ipv4_)
+    : LinkLayer::RecvCallback(PROTOCOL_ID), ipv4(ipv4_) {}
 
 int IPv4::LinkLayerHandler::handle(const void *buf, int len,
                                    LinkLayer::Device *device) {
-  return ipv4Layer.handlePacket(
-      (const void *)((const unsigned char *)buf + sizeof(LinkLayer::Header)), len);
+  return ipv4.handlePacket(
+      (const void *)((const unsigned char *)buf + sizeof(LinkLayer::Header)),
+      len);
 }

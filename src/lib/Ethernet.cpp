@@ -13,16 +13,18 @@
 
 constexpr int Ethernet::LINK_TYPE = DLT_EN10MB;
 
-Ethernet::Ethernet(NetStack &stack_) : stack(stack_), netstackHandler(*this) {}
+Ethernet::Ethernet(NetStack &netstack_)
+    : netstack(netstack_), netstackHandler(*this) {}
 
 Ethernet::Device::Device(pcap_t *p_, const char *name_, const Addr &addr_)
     : NetStack::Device(p_, name_, LINK_TYPE), addr(addr_) {}
 
-int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst, int etherType) {
+int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst,
+                                int etherType) {
   int frameLen = sizeof(Header) + len;
 
   if ((etherType >> 16) != 0) {
-    ERRLOG("Invalid etherType: %X\n", etherType);
+    ERRLOG("Invalid etherType: 0x%X\n", etherType);
     return -1;
   }
 
@@ -31,12 +33,9 @@ int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst, int e
     ERRLOG("malloc error: %s\n", strerror(errno));
     return -1;
   }
-  
-  *(Header *)frame = Header {
-    dst: dst,
-    src: addr,
-    etherType: htons(etherType)
-  };
+
+  *(Header *)frame =
+  Header{dst : dst, src : addr, etherType : htons(etherType)};
   memcpy((unsigned char *)frame + sizeof(Header), buf, len);
 
   int rc = NetStack::Device::sendFrame(frame, frameLen);
@@ -45,7 +44,7 @@ int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst, int e
 }
 
 Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
-  if (stack.findDeviceByName(name)) {
+  if (netstack.findDeviceByName(name)) {
     ERRLOG("Duplicated device: %s\n", name);
     return nullptr;
   }
@@ -72,39 +71,43 @@ Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
             break;
           }
         }
+      if (!found)
+        ERRLOG("No Ethernet address: %s\n", name);
       if (found)
         break;
     }
   pcap_freealldevs(alldevs);
 
   if (!found) {
-    ERRLOG("Device not found: %s\n", name);
+    ERRLOG("No such Ethernet device: %s\n", name);
     return nullptr;
   }
 
   pcap_t *p = pcap_create(name, errbuf);
   if (!p) {
-    ERRLOG("pcap_create (device %s) error: %s\n", name, errbuf);
+    ERRLOG("pcap_create(device %s) error: %s\n", name, errbuf);
     return nullptr;
   }
   rc = pcap_set_immediate_mode(p, 1);
   if (rc != 0) {
-    ERRLOG("pcap_set_immediate (device %s) error: %s\n", name, pcap_geterr(p));
+    ERRLOG("pcap_set_immediate(device %s) error: %s\n", name, pcap_geterr(p));
     pcap_close(p);
     return nullptr;
   }
   rc = pcap_activate(p);
   if (rc != 0) {
-    ERRLOG("pcap_activate (device %s) error: %s\n", name, pcap_geterr(p));
+    ERRLOG("pcap_activate(device %s) error: %s\n", name, pcap_geterr(p));
+    pcap_close(p);
     return nullptr;
   }
+
   auto *d = new Device(p, name, addr);
-  stack.addDevice(d);
+  netstack.addDevice(d);
   return d;
 }
 
 Ethernet::Device *Ethernet::findDeviceByName(const char *name) {
-  return dynamic_cast<Device *>(stack.findDeviceByName(name));
+  return dynamic_cast<Device *>(netstack.findDeviceByName(name));
 }
 
 Ethernet::RecvCallback::RecvCallback(int etherType_) : etherType(etherType_) {}
@@ -115,7 +118,8 @@ void Ethernet::addRecvCallback(RecvCallback *callback) {
 
 int Ethernet::handleFrame(const void *buf, int len, Device *device) {
   if (len < sizeof(Header)) {
-    ERRLOG("Truncated Ethernet header (device %s): %d/%d\n", device->name, len, (int)sizeof(Header));
+    ERRLOG("Truncated Ethernet header (device %s): %d/%d\n", device->name, len,
+           (int)sizeof(Header));
     return -1;
   }
   const Header &h = *(const Header *)buf;
@@ -129,17 +133,17 @@ int Ethernet::handleFrame(const void *buf, int len, Device *device) {
 }
 
 int Ethernet::setup() {
-  stack.addRecvCallback(&netstackHandler);
+  netstack.addRecvCallback(&netstackHandler);
   return 0;
 }
 
-Ethernet::NetStackHandler::NetStackHandler(Ethernet &ethernetLayer_)
-    : NetStack::RecvCallback(LINK_TYPE), ethernetLayer(ethernetLayer_) {}
+Ethernet::NetStackHandler::NetStackHandler(Ethernet &ethernet_)
+    : NetStack::RecvCallback(LINK_TYPE), ethernet(ethernet_) {}
 
 int Ethernet::NetStackHandler::handle(const void *buf, int len,
                                       NetStack::Device *device) {
   if (auto *d = dynamic_cast<Device *>(device))
-    return ethernetLayer.handleFrame(buf, len, d);
-  ERRLOG("Unconfigured Ethernet device: device %s\n", device->name);
+    return ethernet.handleFrame(buf, len, d);
+  ERRLOG("Unconfigured Ethernet device: %s\n", device->name);
   return -1;
 }

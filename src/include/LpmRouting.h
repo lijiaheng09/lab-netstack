@@ -3,6 +3,9 @@
 
 #include "IPv4.h"
 
+/**
+ * @brief The Longest Prefix Match (LPM) routing table.
+ */
 class LpmRouting : public IPv4::Routing {
 public:
   HopInfo match(const Addr &addr) override;
@@ -11,12 +14,12 @@ public:
     Addr addr;                 // The address to be matched.
     Addr mask;                 // The prefix mask (required to be a prefix).
     LinkLayer::Device *device; // The port to the next hop.
-    LinkLayer::Addr dstMAC;   // The destination address of the next hop.
+    LinkLayer::Addr dstMAC;    // The destination address of the next hop.
   };
 
   /**
    * @brief Set an routing entry
-   * 
+   *
    * @param entry The entry to be set.
    * @return 0 on success, negative on error.
    */

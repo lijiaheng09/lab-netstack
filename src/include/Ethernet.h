@@ -12,9 +12,15 @@
   a.data[0], a.data[1], a.data[2], a.data[3], a.data[4], a.data[5]
 #define ETHERNET_ADDR_FMT_NUM 6
 
+/**
+ * @brief The Ethernet link layer service built above `NetStack`.
+ * Can open Ethernet devices and handling sending & receiving of Ethernet
+ * frames.
+ * May build network services based on etherType above it.
+ */
 class Ethernet {
 public:
-  static const int LINK_TYPE;
+  static const int LINK_TYPE; // The corresponding linkType in netstack.
 
   struct Addr {
     unsigned char data[6];
@@ -26,23 +32,26 @@ public:
     uint16_t etherType;
   };
 
-  NetStack &stack;
+  NetStack &netstack;
 
-  Ethernet(NetStack &stack_);
+  Ethernet(NetStack &netstack_);
   Ethernet(const Ethernet &) = delete;
 
   class Device : public NetStack::Device {
-  public:
-    const Addr addr;
     Device(struct pcap *p_, const char *name_, const Addr &addr_);
+
+    friend class Ethernet;
+
+  public:
+    const Addr addr; // Ethernet (MAC) address of the device.
 
     /**
      * @brief Send a frame through the Ethernet device.
      *
      * @param buf Pointer to the payload.
      * @param len Length of the payload.
-     * @param dst The Ethernet address of the destination.
-     * @param etherType The etherType field.
+     * @param dst Ethernet address of the destination.
+     * @param etherType The `etherType` field.
      * @return 0 on success, negative on error.
      */
     int sendFrame(const void *buf, int len, const Addr &dst, int etherType);
@@ -57,7 +66,7 @@ public:
   Device *addDeviceByName(const char *name);
 
   /**
-   * @brief Find an added Ethernet device ID by its name.
+   * @brief Find an added Ethernet device by its name.
    *
    * @param name Name of the device.
    * @return Pointer to the `Ethernet::Device` object, nullptr if not found.
@@ -80,19 +89,32 @@ public:
      *
      * @param buf Pointer to the frame.
      * @param len Length of the frame.
-     * @param device Pointer to a `Ethernet::Device` object, describing the
-     * receiving device.
+     * @param device The receiving device.
      * @return 0 on success, negative on error.
      */
     virtual int handle(const void *buf, int len, Device *device) = 0;
   };
 
+  /**
+   * @brief Register a callback on receiving Ethernet frames.
+   *
+   * @param callback Pointer to a `RecvCallback` object (which need to be
+   * persistent).
+   */
   void addRecvCallback(RecvCallback *callback);
 
+  /**
+   * @brief Handle a receiving frame; dispatch it to registered callbacks.
+   *
+   * @param buf Pointer to the frame.
+   * @param len Length of the frame.
+   * @param device The receiving device.
+   * @return 0 on success, negative on error.
+   */
   int handleFrame(const void *buf, int len, Device *device);
 
   /**
-   * @brief Setup the Ethernet Layer.
+   * @brief Setup the Ethernet link layer service.
    *
    * @return 0 on success, negative on error.
    */
@@ -100,10 +122,10 @@ public:
 
 private:
   class NetStackHandler : public NetStack::RecvCallback {
-    Ethernet &ethernetLayer;
+    Ethernet &ethernet;
 
   public:
-    NetStackHandler(Ethernet &ethernetLayer_);
+    NetStackHandler(Ethernet &ethernet_);
     int handle(const void *buf, int len, NetStack::Device *device) override;
   } netstackHandler;
 
