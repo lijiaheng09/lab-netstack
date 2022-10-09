@@ -99,8 +99,8 @@ int IP::sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
                    int protocol) {
   int packetLen = sizeof(Header) + len;
 
-  if ((packetLen >> 16) != 0) {
-    ERRLOG("Invalid IP packet length: %d\n", packetLen);
+  if (len < 0 || (packetLen >> 16) != 0) {
+    ERRLOG("Invalid IP data length: %d\n", len);
     return -1;
   }
   if ((protocol >> 8) != 0) {
@@ -143,6 +143,13 @@ void IP::addRecvCallback(RecvCallback *callback) {
 int IP::setup() {
   linkLayer.addRecvCallback(&linkLayerHandler);
   return 0;
+}
+
+const void *IP::stripHeader(const void *packet, int &len) {
+  const Header &header = *(const Header *)packet;
+  int hdrLen = (header.versionAndIHL & 0x0F) * 5;
+  len = ntohs(header.totalLength) - hdrLen;
+  return (const unsigned char *)packet + hdrLen;
 }
 
 IP::LinkLayerHandler::LinkLayerHandler(IP &ip_)
@@ -199,7 +206,7 @@ int IP::LinkLayerHandler::handle(const void *buf, int len,
   for (auto *c : ip.callbacks)
     if (c->promiscuous || endDevice) {
       if (c->protocol == -1 || c->protocol == protocol) {
-        if (c->handle(packet, packetLen, newInfo))
+        if (c->handle(packet, packetLen, newInfo) != 0)
           rc = -1;
       }
     }

@@ -206,6 +206,15 @@ public:
    */
   int setup();
 
+  /**
+   * @brief Strip the IP header of a valid IP packet.
+   *
+   * @param buf Pointer to the packet.
+   * @param len Will be filled with length of the payload.
+   * @return Pointer to the payload.
+   */
+  static const void *stripHeader(const void *packet, int &len);
+
 private:
   Vector<DevAddr> addrs;
   Routing *routing;

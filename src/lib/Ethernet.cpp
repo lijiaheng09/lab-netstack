@@ -26,6 +26,10 @@ int Ethernet::Device::sendFrame(const void *buf, int len, const Addr &dst,
                                 int etherType) {
   int frameLen = sizeof(Header) + len;
 
+  if (len < 0) {
+    ERRLOG("Invalid Ethernet payload length: %d\n", len);
+    return -1;
+  }
   if ((etherType >> 16) != 0) {
     ERRLOG("Invalid etherType: 0x%X\n", etherType);
     return -1;
