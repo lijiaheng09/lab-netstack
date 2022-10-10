@@ -54,16 +54,16 @@ void IP::setRouting(Routing *routing) {
   this->routing = routing;
 }
 
-int IP::sendPacketWithHeader(void *buf, int len) {
-  Header &header = *(Header *)buf;
-  if (len < sizeof(Header)) {
-    ERRLOG("Truncated IP header: %d/%d\n", len, (int)sizeof(Header));
+int IP::sendPacketWithHeader(void *packet, int packetLen) {
+  Header &header = *(Header *)packet;
+  if (packetLen < sizeof(Header)) {
+    ERRLOG("Truncated IP header: %d/%d\n", packetLen, (int)sizeof(Header));
     return -1;
   }
   int hdrLen = (header.versionAndIHL & 0x0f) * 4;
-  int packetLen = ntohs(header.totalLength);
-  if (len != packetLen || packetLen < hdrLen) {
-    ERRLOG("Invalid IP packet length: %d/%d:%d\n", len, hdrLen, packetLen);
+  if (ntohs(header.totalLength) != packetLen || packetLen < hdrLen) {
+    ERRLOG("Invalid IP packet length: %d/%d:%d\n", packetLen, hdrLen,
+           ntohs(header.totalLength));
     return -1;
   }
 
@@ -78,7 +78,7 @@ int IP::sendPacketWithHeader(void *buf, int len) {
   for (auto &&e : addrs)
     if (header.dst == Addr::BROADCAST || header.dst == (e.addr | ~e.mask)) {
       isBroadcast = true;
-      if (e.device->sendFrame(buf, len, LinkLayer::Addr::BROADCAST,
+      if (e.device->sendFrame(packet, packetLen, LinkLayer::Addr::BROADCAST,
                               PROTOCOL_ID) != 0) {
         rc = -1;
       }
@@ -96,15 +96,15 @@ int IP::sendPacketWithHeader(void *buf, int len) {
            IP_ADDR_FMT_ARGS(header.dst));
     return -1;
   }
-  return hop.device->sendFrame(buf, len, hop.dstMAC, PROTOCOL_ID);
+  return hop.device->sendFrame(packet, packetLen, hop.dstMAC, PROTOCOL_ID);
 }
 
-int IP::sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
-                   int protocol) {
-  int packetLen = sizeof(Header) + len;
+int IP::sendPacket(const void *data, int dataLen, const Addr &src,
+                   const Addr &dst, int protocol) {
+  int packetLen = sizeof(Header) + dataLen;
 
-  if (len < 0 || (packetLen >> 16) != 0) {
-    ERRLOG("Invalid IP data length: %d\n", len);
+  if (dataLen < 0 || (packetLen >> 16) != 0) {
+    ERRLOG("Invalid IP data length: %d\n", dataLen);
     return -1;
   }
   if ((protocol >> 8) != 0) {
@@ -131,7 +131,7 @@ int IP::sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
     src : src,
     dst : dst
   };
-  memcpy(&header + 1, buf, len);
+  memcpy(&header + 1, data, dataLen);
   int rc = sendPacketWithHeader(packet, packetLen);
   free(packet);
   return rc;
@@ -149,31 +149,20 @@ int IP::setup() {
   return icmp.setup();
 }
 
-const void *IP::stripHeader(const void *packet, int &len) {
-  const Header &header = *(const Header *)packet;
-  int hdrLen = (header.versionAndIHL & 0x0F) * 4;
-  len = ntohs(header.totalLength) - hdrLen;
-  return (const unsigned char *)packet + hdrLen;
-}
-
 IP::LinkLayerHandler::LinkLayerHandler(IP &ip_)
     : LinkLayer::RecvCallback(PROTOCOL_ID), ip(ip_) {}
 
-int IP::LinkLayerHandler::handle(const void *buf, int len,
-                                 LinkLayer::Device *device, const Info &info) {
-
-  int packetCapLen = len - sizeof(LinkLayer::Header);
-
+int IP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
+                                 const Info &info) {
   if (packetCapLen < sizeof(Header)) {
-    ERRLOG("Truncated IP header: %d/%d\n", len, (int)sizeof(Header));
+    ERRLOG("Truncated IP header: %d/%d\n", packetCapLen, (int)sizeof(Header));
     return -1;
   }
-  const void *packet = (const unsigned char *)buf + sizeof(LinkLayer::Header);
   const Header &header = *(const Header *)packet;
   int hdrLen = (header.versionAndIHL & 0x0f) * 4;
   int packetLen = ntohs(header.totalLength);
   if (packetCapLen < packetLen || packetLen < hdrLen) {
-    ERRLOG("Truncated IP packet: %d/%d:%d\n", len, hdrLen, packetLen);
+    ERRLOG("Truncated IP packet: %d/%d:%d\n", packetCapLen, hdrLen, packetLen);
     return -1;
   }
   if (calcInternetChecksum16(&header, hdrLen) != 0) {
@@ -187,7 +176,7 @@ int IP::LinkLayerHandler::handle(const void *buf, int len,
   bool isBroadcast = false;
 
   if (header.dst == Addr::BROADCAST) {
-    endDevice = device;
+    endDevice = info.linkDevice;
     isBroadcast = true;
   } else {
     for (auto &&e : ip.addrs)
@@ -200,17 +189,19 @@ int IP::LinkLayerHandler::handle(const void *buf, int len,
 
   if (!isBroadcast)
     endDevice = ip.findDeviceByAddr(header.dst);
-  newInfo.linkDevice = device;
-  newInfo.endDevice = endDevice;
-  newInfo.linkHeader = (const LinkLayer::Header *)buf;
+  newInfo.netHeader = &header;
   newInfo.isBroadcast = isBroadcast;
+  newInfo.endDevice = endDevice;
+
+  const void *data = (const unsigned char *)packet + hdrLen;
+  int dataLen = packetLen - hdrLen;
 
   int protocol = header.protocol;
   int rc = 0;
   for (auto *c : ip.callbacks)
     if (c->promiscuous || endDevice) {
       if (c->protocol == -1 || c->protocol == protocol) {
-        if (c->handle(packet, packetLen, newInfo) != 0)
+        if (c->handle(data, dataLen, newInfo) != 0)
           rc = -1;
       }
     }

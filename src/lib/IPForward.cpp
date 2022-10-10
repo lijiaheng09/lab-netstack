@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <arpa/inet.h>
 #include <sys/time.h>
 
 #include "log.h"
@@ -24,8 +25,10 @@ int IPForward::setup() {
 IPForward::IPHandler::IPHandler(IPForward &ipForward_)
     : IP::RecvCallback(true, -1), ipForward(ipForward_) {}
 
-int IPForward::IPHandler::handle(const void *buf, int len, const Info &info) {
-  const auto &origHeader = *(const IP::Header *)buf;
+int IPForward::IPHandler::handle(const void *data, int dataLen,
+                                 const Info &info) {
+  const void *packet = info.netHeader;
+  const auto &origHeader = *info.netHeader;
 
   if (info.endDevice) {
     /*
@@ -44,25 +47,27 @@ int IPForward::IPHandler::handle(const void *buf, int len, const Info &info) {
     if (cur.tv_usec >= info.ts.tv_usec)
       procTime++;
   }
+  
+  int packetLen = ntohs(origHeader.totalLength);
 
   // Assuming the forwarding time much less than 1s.
   if (origHeader.timeToLive <= procTime) {
     // drop.
-    ipForward.ip.icmp.sendTimeExceeded(buf, len, info);
+    ipForward.ip.icmp.sendTimeExceeded(&origHeader, packetLen, info);
     return 0;
   }
 
-  void *newBuf = malloc(len);
+  void *newBuf = malloc(packetLen);
   if (!newBuf) {
     ERRLOG("malloc error: %s\n", strerror(errno));
     return -1;
   }
 
-  memcpy(newBuf, buf, len);
+  memcpy(newBuf, packet, packetLen);
   auto &newHeader = *(IP::Header *)newBuf;
   newHeader.timeToLive -= procTime;
 
-  int rc = ipForward.ip.sendPacketWithHeader(newBuf, len);
+  int rc = ipForward.ip.sendPacketWithHeader(newBuf, packetLen);
   free(newBuf);
   return rc;
 }

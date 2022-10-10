@@ -82,7 +82,7 @@ public:
 
   /**
    * @brief Get all assigned IP addresses.
-   * 
+   *
    * @return The IP address table.
    */
   const Vector<DevAddr> &getAddrs();
@@ -147,21 +147,21 @@ public:
    *
    * @return 0 on success, negative on error.
    */
-  int sendPacketWithHeader(void *buf, int len);
+  int sendPacketWithHeader(void *packet, int packetLen);
 
   /**
    * @brief Send an IP packet.
    *
-   * @param buf Pointer to the payload.
-   * @param len Length of the payload.
+   * @param data Pointer to the payload.
+   * @param dataLen Length of the payload.
    * @param src IP address of the source host.
    * @param dst IP address of the destination host.
    * @param protocol The `protocol` field of the packet.
    *
    * @return 0 on success, negative on error.
    */
-  int sendPacket(const void *buf, int len, const Addr &src, const Addr &dst,
-                 int protocol);
+  int sendPacket(const void *data, int dataLen, const Addr &src,
+                 const Addr &dst, int protocol);
 
   class RecvCallback {
   public:
@@ -177,9 +177,7 @@ public:
     RecvCallback(bool promiscuous_, int protocol_);
 
     struct Info : LinkLayer::RecvCallback::Info {
-      const LinkLayer::Header *linkHeader;
-      LinkLayer::Device *linkDevice;
-
+      const Header *netHeader;
       bool isBroadcast;
       LinkLayer::Device *endDevice;
 
@@ -190,12 +188,12 @@ public:
     /**
      * @brief Handle a received IP packet (guaranteed valid).
      *
-     * @param buf Pointer to the packet.
-     * @param len Length of the packet.
+     * @param data Pointer to the payload.
+     * @param dataLen Length of the payload.
      * @param info Other information of the received packet.
      * @return 0 on success, negative on error.
      */
-    virtual int handle(const void *buf, int len, const Info &info) = 0;
+    virtual int handle(const void *data, int dataLen, const Info &info) = 0;
   };
 
   /**
@@ -213,15 +211,6 @@ public:
    */
   int setup();
 
-  /**
-   * @brief Strip the IP header of a valid IP packet.
-   *
-   * @param buf Pointer to the packet.
-   * @param len Will be filled with length of the payload.
-   * @return Pointer to the payload.
-   */
-  static const void *stripHeader(const void *packet, int &len);
-
 private:
   Vector<DevAddr> addrs;
   Routing *routing;
@@ -234,8 +223,7 @@ private:
   public:
     LinkLayerHandler(IP &ip_);
 
-    int handle(const void *buf, int len, LinkLayer::Device *device,
-               const Info &info) override;
+    int handle(const void *packet, int packetCapLen, const Info &info) override;
   } linkLayerHandler;
 };
 

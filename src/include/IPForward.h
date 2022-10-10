@@ -25,9 +25,11 @@ private:
 
   class IPHandler : public IP::RecvCallback {
     IPForward &ipForward;
+    
   public:
     IPHandler(IPForward &ipForward_);
-    int handle(const void *buf, int len, const Info &info);
+
+    int handle(const void *data, int dataLen, const Info &info);
   } ipHandler;
 };
 

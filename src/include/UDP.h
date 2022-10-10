@@ -59,7 +59,7 @@ public:
     RecvCallback(int port_);
 
     struct Info : NetworkLayer::RecvCallback::Info {
-      const NetworkLayer::Header *netHeader;
+      const Header *udpHeader;
 
       Info(const NetworkLayer::RecvCallback::Info &info_)
           : NetworkLayer::RecvCallback::Info(info_) {}
@@ -68,12 +68,12 @@ public:
     /**
      * @brief Handle a received UDP segment (guaranteed valid).
      *
-     * @param buf Pointer to the segment.
-     * @param len Length of the segment.
+     * @param data Pointer to the payload.
+     * @param dataLen Length of the payload.
      * @param info Other information of the received packet.
      * @return 0 on success, negative on error.
      */
-    virtual int handle(const void *buf, int len, const Info &info) = 0;
+    virtual int handle(const void *data, int dataLen, const Info &info) = 0;
   };
 
   /**
@@ -108,7 +108,7 @@ private:
   public:
     NetworkLayerHandler(UDP &udp_);
 
-    int handle(const void *buf, int len, const Info &info) override;
+    int handle(const void *seg, int segLen, const Info &info) override;
   } networkHandler;
 };
 

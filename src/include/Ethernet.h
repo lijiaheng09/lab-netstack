@@ -50,13 +50,14 @@ public:
     /**
      * @brief Send a frame through the Ethernet device.
      *
-     * @param buf Pointer to the payload.
-     * @param len Length of the payload.
+     * @param data Pointer to the payload.
+     * @param dataLen Length of the payload.
      * @param dst Ethernet address of the destination.
      * @param etherType The `etherType` field.
      * @return 0 on success, negative on error.
      */
-    int sendFrame(const void *buf, int len, const Addr &dst, int etherType);
+    int sendFrame(const void *data, int dataLen, const Addr &dst,
+                  int etherType);
   };
 
   /**
@@ -87,6 +88,9 @@ public:
     RecvCallback(int etherType_);
 
     struct Info : public NetBase::RecvCallback::Info {
+      Device *linkDevice;
+      const Header *linkHeader;
+
       Info(const NetBase::RecvCallback::Info &base)
           : NetBase::RecvCallback::Info(base) {}
     };
@@ -94,14 +98,12 @@ public:
     /**
      * @brief Handle a received Ethernet frame (guaranteed valid).
      *
-     * @param buf Pointer to the frame.
-     * @param len Length of the frame.
-     * @param device The receiving device.
+     * @param data Pointer to the payload.
+     * @param dataLen Length of the payload.
      * @param info Other information of the received frame.
      * @return 0 on success, negative on error.
      */
-    virtual int handle(const void *buf, int len, Device *device,
-                       const Info &info) = 0;
+    virtual int handle(const void *data, int dataLen, const Info &info) = 0;
   };
 
   /**
@@ -125,7 +127,7 @@ private:
 
   public:
     NetBaseHandler(Ethernet &ethernet_);
-    int handle(const void *buf, int len, NetBase::Device *device,
+    int handle(const void *frame, int frameLen, NetBase::Device *baseDevice,
                const Info &info) override;
   } netBaseHandler;
 

@@ -41,12 +41,12 @@ void NetBase::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
 }
 
-int NetBase::handleFrame(const void *buf, int len, Device *device,
+int NetBase::handleFrame(const void *frame, int frameLen, Device *device,
                          RecvCallback::Info info) {
   int rc = 0;
   for (auto *c : callbacks)
     if (c->linkType == -1 || device->linkType == c->linkType)
-      if (c->handle(buf, len, device, info) != 0)
+      if (c->handle(frame, frameLen, device, info) != 0)
         rc = -1;
   return rc;
 }

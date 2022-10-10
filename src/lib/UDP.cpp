@@ -106,12 +106,8 @@ static uint16_t calcUdpChecksum(const UDP::PseudoNetworkHeader &pseudoHeader,
 UDP::NetworkLayerHandler::NetworkLayerHandler(UDP &udp_)
     : udp(udp_), NetworkLayer::RecvCallback(false, PROTOCOL_ID) {}
 
-int UDP::NetworkLayerHandler::handle(const void *buf, int len,
+int UDP::NetworkLayerHandler::handle(const void *seg, int segLen,
                                      const Info &info) {
-  const auto &netHeader = *(const NetworkLayer::Header *)buf;
-
-  int segLen;
-  const void *seg = NetworkLayer::stripHeader(buf, segLen);
   if (segLen < sizeof(Header)) {
     ERRLOG("Truncated UDP header: %d/%d\n", segLen, (int)sizeof(Header));
     return -1;
@@ -122,10 +118,10 @@ int UDP::NetworkLayerHandler::handle(const void *buf, int len,
     return -1;
   }
   PseudoNetworkHeader pseudoHeader{
-    srcAddr : netHeader.src,
-    dstAddr : netHeader.dst,
+    srcAddr : info.netHeader->src,
+    dstAddr : info.netHeader->dst,
     zero : 0,
-    protocol : netHeader.protocol,
+    protocol : info.netHeader->protocol,
     udpLength : header.length
   };
   if (header.checksum != 0 && calcUdpChecksum(pseudoHeader, seg, segLen) != 0) {
@@ -134,13 +130,16 @@ int UDP::NetworkLayerHandler::handle(const void *buf, int len,
   }
 
   UDP::RecvCallback::Info newInfo(info);
-  newInfo.netHeader = &netHeader;
+  newInfo.udpHeader = &header;
+
+  const void *data = &header + 1;
+  int dataLen = segLen - sizeof(Header);
 
   int port = ntohs(header.dstPort);
   int rc = 0;
   for (auto *c : udp.callbacks)
     if (c->port == -1 || c->port == port) {
-      if (c->handle(seg, segLen, newInfo) != 0)
+      if (c->handle(data, dataLen, newInfo) != 0)
         rc = -1;
     }
   return rc;

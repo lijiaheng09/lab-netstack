@@ -53,6 +53,7 @@ do
 
     # Disable TCP/UDP checksum overload.
     eval ./execNS \$ns$i ethtool -K \$veth$i$j rx off tx off tso off sg off >/dev/null
+    eval ./execNS \$ns$j ethtool -K \$veth$j$i rx off tx off tso off sg off >/dev/null
 done
 
 while read line

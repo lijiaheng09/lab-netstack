@@ -54,7 +54,7 @@ private:
   public:
     IPHandler(ICMP &icmp_);
 
-    int handle(const void *buf, int len, const Info &info) override;
+    int handle(const void *msg, int msgLen, const Info &info) override;
   } ipHandler;
 };
 

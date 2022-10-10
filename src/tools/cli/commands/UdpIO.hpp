@@ -16,18 +16,15 @@ class CmdNcUdpListen : public Command {
         : listen(listen_), remote(remote_),
           remotePort(remotePort_), UDP::RecvCallback(port_) {}
 
-    int handle(const void *buf, int len, const Info &info) override {
-      const auto &header = *(const UDP::Header *)buf;
+    int handle(const void *data, int dataLen, const Info &info) override {
       if (listen.load()) {
         remote = info.netHeader->src;
-        remotePort = ntohs(header.srcPort);
+        remotePort = ntohs(info.udpHeader->srcPort);
         listen.store(false);
         printf("[*] Recv from " IP_ADDR_FMT_STRING ":%d\n",
                IP_ADDR_FMT_ARGS(remote), remotePort);
       }
-      int dataLen = len - sizeof(UDP::Header);
-      const char *data = (const char *)(&header + 1);
-      printf("%.*s", dataLen, data);
+      printf("%.*s", dataLen, (const char *)data);
       return 0;
     }
   };
@@ -78,11 +75,8 @@ class CmdNcUdp : public Command {
   public:
     Handler(int port_) : UDP::RecvCallback(port_) {}
 
-    int handle(const void *buf, int len, const Info &info) override {
-      const auto &header = *(const UDP::Header *)buf;
-      int dataLen = len - sizeof(UDP::Header);
-      const char *data = (const char *)(&header + 1);
-      printf("%.*s", dataLen, data);
+    int handle(const void *data, int dataLen, const Info &info) override {
+      printf("%.*s", dataLen, (const char *)data);
       return 0;
     }
   };

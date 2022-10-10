@@ -88,24 +88,25 @@ const RIP::Table &RIP::getTable() {
 RIP::UDPHandler::UDPHandler(RIP &rip_)
     : rip(rip_), UDP::RecvCallback(UDP_PORT) {}
 
-int RIP::UDPHandler::handle(const void *buf, int len, const Info &info) {
-  const auto &udpHeader = *(const UDP::Header *)buf;
-  const void *payload = &udpHeader + 1;
-  Header requriedHeader{command : 2, version : 0, zero : 0};
-  if (memcmp(payload, &requriedHeader, sizeof(Header)) != 0) {
-    fprintf(stderr, "Invalid RIP header.\n");
-    return 1;
+int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
+  if (msgLen < sizeof(Header)) {
+    ERRLOG("Truncated RIP header: %d/%d\n", msgLen, (int)sizeof(Header));
+    return -1;
   }
-  const DataEntry *recvEnts = (const DataEntry *)((const Header *)payload + 1);
-  int entriesLen =
-      ntohs(udpHeader.length) - sizeof(UDP::Header) - sizeof(Header);
-  int nEntries = entriesLen / sizeof(DataEntry);
+  const Header &header = *(const Header *)msg;
+  Header requriedHeader{command : 2, version : 0, zero : 0};
+  if (memcmp(msg, &requriedHeader, sizeof(Header)) != 0) {
+    ERRLOG("Invalid RIP header.\n");
+    return -1;
+  }
+  const DataEntry *ents = (const DataEntry *)(&header + 1);
+  int nEntries = (msgLen - sizeof(Header)) / sizeof(DataEntry);
 
   bool realUpdated = false;
 
   time_t curTime = time(nullptr);
   for (int i = 0; i < nEntries; i++) {
-    const auto &e = recvEnts[i];
+    const auto &e = ents[i];
     if (ntohs(e.addressFamily) != ADDRESS_FAMILY)
       continue;
 

@@ -71,13 +71,13 @@ public:
     /**
      * @brief Handle a received frame.
      *
-     * @param buf Pointer to the frame.
-     * @param len Length of the frame.
+     * @param frame Pointer to the frame.
+     * @param frameLen Length of the frame.
      * @param device The receiving device.
      * @param info Other information of the received frame.
      * @return 0 on success, negative on error.
      */
-    virtual int handle(const void *buf, int len, Device *device,
+    virtual int handle(const void *frame, int frameLen, Device *device,
                        const Info &info) = 0;
   };
 
@@ -92,13 +92,13 @@ public:
   /**
    * @brief Handle a receiving frame; dispatch it to registered callbacks.
    *
-   * @param buf Pointer to the frame.
-   * @param len Length of the frame.
+   * @param frame Pointer to the frame.
+   * @param frameLen Length of the frame.
    * @param device The device receiving the frame.
    * @param info Other information of the received frame.
    * @return 0 on success, negative on error.
    */
-  int handleFrame(const void *buf, int len, Device *device,
+  int handleFrame(const void *frame, int frameLen, Device *device,
                   RecvCallback::Info info);
 
   /**

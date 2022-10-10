@@ -18,10 +18,10 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
   const IP::Header &origHeader = *(const IP::Header *)orig;
 
   int origHdrLen = (origHeader.versionAndIHL & 0x0F) * 4;
-  int dataLen = ntohs(origHeader.totalLength);
-  if (dataLen > origHdrLen + 64)
-    dataLen = origHdrLen + 64;
-  int msgLen = sizeof(Header) + dataLen;
+  int backLen = origLen;
+  if (backLen > origHdrLen + 8)
+    backLen = origHdrLen + 8;
+  int msgLen = sizeof(Header) + backLen;
 
   IP::Addr src;
   int rc = ip.getAnyAddr(info.linkDevice, src);
@@ -38,7 +38,7 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
 
   Header &header = *(Header *)msg;
   header = Header{type : 11, code : 0, checksum : 0, info : 0};
-  memcpy(&header + 1, orig, dataLen);
+  memcpy(&header + 1, orig, backLen);
   header.checksum = calcInternetChecksum16(msg, msgLen);
 #ifdef NETSTACK_DEBUG
   assert(calcInternetChecksum16(msg, msgLen) == 0);
@@ -57,6 +57,6 @@ int ICMP::setup() {
 ICMP::IPHandler::IPHandler(ICMP &icmp_)
     : icmp(icmp_), IP::RecvCallback(false, PROTOCOL_ID) {}
 
-int ICMP::IPHandler::handle(const void *buf, int len, const Info &info) {
+int ICMP::IPHandler::handle(const void *msg, int msgLen, const Info &info) {
   return 0;
 }
