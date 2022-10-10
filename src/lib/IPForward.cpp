@@ -9,9 +9,14 @@
 #include "IPForward.h"
 #include "ICMP.h"
 
-IPForward::IPForward(IP &ip_) : ip(ip_), ipHandler(*this) {}
+IPForward::IPForward(IP &ip_) : ip(ip_), isUp(false), ipHandler(*this) {}
 
 int IPForward::setup() {
+  if (isUp) {
+    ERRLOG("IP forwarding is already up.\n");
+    return 1;
+  }
+  isUp = true;
   ip.addRecvCallback(&ipHandler);
   return 0;
 }

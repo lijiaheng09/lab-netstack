@@ -22,7 +22,7 @@ public:
 
     IP::DevAddr entry{device : d, addr : addr, mask : mask};
 
-    invoke([&]() { ip.addAddr(entry); });
+    INVOKE({ ip.addAddr(entry); })
     return 0;
   }
 };
@@ -50,7 +50,7 @@ public:
       return 1;
 
     int rc;
-    invoke([&]() { rc = staticRouting.setEntry(entry); });
+    INVOKE({ rc = staticRouting.setEntry(entry); })
     if (rc != 0) {
       fprintf(stderr, "Error setting routing entry.");
       return 1;
@@ -65,36 +65,34 @@ public:
 
   int main(int argc, char **argv) override {
     int rc;
-    invoke([&]() { rc = ripRouting.setup(); });
+    INVOKE({ rc = ripRouting.setup(); })
     if (rc != 0) {
       fprintf(stderr, "Error setting up RIP routing.\n");
       return 1;
     }
-    invoke([&]() { ip.setRouting(&ripRouting); });
+    INVOKE({ ip.setRouting(&ripRouting); })
     return 0;
   }
 };
 
-class CmdRouteQuery : public Command {
+class CmdRouteRipInfo : public Command {
 public:
-  CmdRouteQuery() : Command("route-query") {}
+  CmdRouteRipInfo() : Command("route-rip-info") {}
 
   int main(int argc, char **argv) override {
-    IP::Addr addr;
-    if (argc != 2 || sscanf(argv[1], IP_ADDR_FMT_STRING,
-                            IP_ADDR_FMT_ARGS(&addr)) != IP_ADDR_FMT_NUM) {
-      fprintf(stderr, "Usage: %s <ip-addr>\n", argv[1]);
-      return 1;
-    }
     IP::Routing::HopInfo res;
-    invoke([&]() { res = ripRouting.match(addr); });
-    if (!res.device) {
-      fprintf(stderr, "No IP routing for " IP_ADDR_FMT_STRING "\n",
-              IP_ADDR_FMT_ARGS(addr));
-      return 1;
-    }
-    printf("Found routing: dev %s via" ETHERNET_ADDR_FMT_STRING,
-           res.device->name, ETHERNET_ADDR_FMT_ARGS(res.dstMAC));
+    INVOKE({
+      const auto &table = ripRouting.getTable();
+      printf("IP | Device | Dest MAC | Metric | Exipre\n");
+      time_t curTime = time(nullptr);
+      for (auto &&e : table) {
+        printf(IP_ADDR_FMT_STRING " | %s | " ETHERNET_ADDR_FMT_STRING
+                                  " | %d | %+ld\n",
+               IP_ADDR_FMT_ARGS(e.first), e.second.device->name,
+               ETHERNET_ADDR_FMT_ARGS(e.second.dstMAC), e.second.metric,
+               e.second.expireTime - curTime);
+      }
+    })
     return 0;
   }
 };

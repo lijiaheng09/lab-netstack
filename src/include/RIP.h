@@ -24,7 +24,7 @@ public:
   NetworkLayer &network;
   NetBase &netBase;
 
-  int updateCycle, expireCycle;
+  int updateCycle, expireCycle, cleanCycle;
 
   RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_);
   RIP(const RIP &) = delete;
@@ -32,15 +32,15 @@ public:
   struct Header {
     uint8_t command;
     uint8_t version;
-    uint16_t zero0;
-    uint16_t addressFamily;
-    uint16_t zero1;
+    uint16_t zero;
   };
 
   struct DataEntry {
+    uint16_t addressFamily;
+    uint16_t zero0;
     NetworkLayer::Addr address;
-    uint32_t zero0;
     uint32_t zero1;
+    uint32_t zero2;
     uint32_t metric;
   };
 
@@ -57,7 +57,6 @@ public:
 
   int sendUpdate();
 
-private:
   class HashAddr {
   public:
     size_t operator()(const NetworkLayer::Addr &a) const {
@@ -65,7 +64,14 @@ private:
     }
   };
 
-  std::unordered_map<NetworkLayer::Addr, TabEntry, HashAddr> table;
+  using Table = std::unordered_map<NetworkLayer::Addr, TabEntry, HashAddr>;
+
+  const Table &getTable();
+
+private:
+  Table table;
+
+  bool isUp;
 
   class UDPHandler : public UDP::RecvCallback {
     RIP &rip;

@@ -23,7 +23,7 @@ public:
   CmdCapturePackets() : Command("capture-packets") {}
 
   int main(int argc, char **argv) override {
-    invoke([&]() { ip.addRecvCallback(&handler); });
+    INVOKE({ ip.addRecvCallback(&handler); })
     return 0;
   }
 };

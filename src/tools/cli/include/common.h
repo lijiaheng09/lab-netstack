@@ -13,4 +13,6 @@ template <typename TFunc> void invoke(TFunc f) {
   loopDispatcher.invoke(&task);
 }
 
+#define INVOKE(body) invoke([&]() body);
+
 #endif

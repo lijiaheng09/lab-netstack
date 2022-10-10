@@ -56,19 +56,18 @@ public:
 
     static constexpr int MAXLINE = 1024;
     char line[MAXLINE];
-    while (fgets(line, MAXLINE, stdin))  {
+    while (fgets(line, MAXLINE, stdin)) {
       int dataLen = strlen(line);
       if (!listen.load()) {
-        invoke([&]() {
-          udp.sendSegment(line, dataLen, src, port, remote, remotePort);
-        });
+        INVOKE(
+            { udp.sendSegment(line, dataLen, src, port, remote, remotePort); })
       }
       if (strcmp(line, ":quit\n") == 0) {
         break;
       }
     }
 
-    invoke([&]() { udp.removeRecvCallback(handler); });
+    INVOKE({ udp.removeRecvCallback(handler); })
     delete handler;
     return 0;
   }
@@ -117,15 +116,13 @@ public:
     char line[MAXLINE];
     while (fgets(line, MAXLINE, stdin)) {
       int dataLen = strlen(line);
-      invoke([&]() {
-        udp.sendSegment(line, dataLen, src, port, remote, remotePort);
-      });
+      INVOKE({ udp.sendSegment(line, dataLen, src, port, remote, remotePort); })
       if (strcmp(line, ":quit\n") == 0) {
         break;
       }
     }
 
-    invoke([&]() { udp.removeRecvCallback(handler); });
+    INVOKE({ udp.removeRecvCallback(handler); })
     delete handler;
     return 0;
   };

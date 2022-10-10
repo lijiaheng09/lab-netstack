@@ -21,6 +21,8 @@ public:
   int setup();
 
 private:
+  bool isUp;
+
   class IPHandler : public IP::RecvCallback {
     IPForward &ipForward;
   public:

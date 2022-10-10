@@ -41,7 +41,7 @@ public:
     memset(data + rLen, 0, padding);
 
     int rc;
-    invoke([&]() { rc = d->sendFrame(data, len, dstMAC, etherType); });
+    INVOKE({ rc = d->sendFrame(data, len, dstMAC, etherType); })
 
     free(data);
     if (rc != 0) {
@@ -74,7 +74,7 @@ public:
   CmdCaptureFrames() : Command("capture-frames") {}
 
   int main(int argc, char **argv) override {
-    invoke([&]() { ethernet.addRecvCallback(&handler); });
+    INVOKE({ ethernet.addRecvCallback(&handler); })
     return 0;
   }
 };
