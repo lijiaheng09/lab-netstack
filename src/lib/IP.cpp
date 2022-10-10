@@ -146,7 +146,7 @@ void IP::addRecvCallback(RecvCallback *callback) {
 
 int IP::setup() {
   linkLayer.addRecvCallback(&linkLayerHandler);
-  return 0;
+  return icmp.setup();
 }
 
 const void *IP::stripHeader(const void *packet, int &len) {

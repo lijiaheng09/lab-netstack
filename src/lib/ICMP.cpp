@@ -11,7 +11,7 @@
 
 constexpr int ICMP::PROTOCOL_ID = 1;
 
-ICMP::ICMP(IP &ip_) : ip(ip_) {}
+ICMP::ICMP(IP &ip_) : ip(ip_), ipHandler(*this) {}
 
 int ICMP::sendTimeExceeded(const void *orig, int origLen,
                            const IP::RecvCallback::Info &info) {
@@ -47,4 +47,16 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
   rc = ip.sendPacket(msg, msgLen, src, origHeader.src, PROTOCOL_ID);
   free(msg);
   return rc;
+}
+
+int ICMP::setup() {
+  ip.addRecvCallback(&ipHandler);
+  return 0;
+}
+
+ICMP::IPHandler::IPHandler(ICMP &icmp_)
+    : icmp(icmp_), IP::RecvCallback(false, PROTOCOL_ID) {}
+
+int ICMP::IPHandler::handle(const void *buf, int len, const Info &info) {
+  return 0;
 }

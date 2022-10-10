@@ -31,6 +31,31 @@ public:
    */
   int sendTimeExceeded(const void *orig, int origLen,
                        const IP::RecvCallback::Info &info);
+
+  /**
+   * @brief Send Echo or Reply Message.
+   *
+   * @param data Pointer to the data.
+   * @param dataLen Length of the data.
+   * @param 8 for echo message; 0 for echo reply message.
+   * @param identifier Identifier field for matching.
+   * @param seqNumber Sequence number.
+   * @return 0 on success, negative on error.
+   */
+  int sendEchoOrReply(const void *data, int dataLen, int type, int identifier,
+                      int seqNumber);
+
+  int setup();
+
+private:
+  class IPHandler : public IP::RecvCallback {
+    ICMP &icmp;
+
+  public:
+    IPHandler(ICMP &icmp_);
+
+    int handle(const void *buf, int len, const Info &info) override;
+  } ipHandler;
 };
 
 #endif

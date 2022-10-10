@@ -51,10 +51,43 @@ char **complete(const char *text, int start, int end) {
   return matches;
 }
 
+int executeCommand(std::vector<char *> &args) {
+  int rc;
+  if (args.empty()) {
+    return 0;
+  }
+
+  bool found = false;
+  for (auto &&c : allCommands)
+    if (strcmp(c->name, args[0]) == 0) {
+      found = true;
+      rc = c->main((int)args.size(), args.data());
+    }
+  
+  if (!found) {
+    fprintf(stderr, "%s: command not found\n", args[0]);
+    rc = 127;
+  }
+
+  return rc;
+}
+
 int main(int argc, char **argv) {
   if (int rc = initNetStack()) {
     fprintf(stderr, "NetStack init error.\n");
     return rc;
+  }
+
+  if (argc > 2 && strcmp(argv[1], "-c") == 0) {
+    std::vector<char *> args(argv + 2, argv + argc);
+    int rc = executeCommand(args);
+    if (rc != 0) {
+      stopNetStack();
+      return rc;
+    }
+    fprintf(stderr, "Waiting for interrupt...\n");
+    netThread->join();
+    return 0;
   }
 
   rl_attempted_completion_function = complete;
@@ -74,21 +107,7 @@ int main(int argc, char **argv) {
 
     } else {
       auto args = splitLine(line);
-      if (args.empty()) {
-        continue;
-      }
-
-      bool found = false;
-      for (auto &&c : allCommands)
-        if (strcmp(c->name, args[0]) == 0) {
-          found = true;
-          rc = c->main((int)args.size(), args.data());
-        }
-      
-      if (!found) {
-        fprintf(stderr, "%s: command not found\n", args[0]);
-        rc = 127;
-      }
+      rc = executeCommand(args);
     }
   }
   stopNetStack();
