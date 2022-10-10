@@ -58,6 +58,7 @@ public:
             }
         }
       }
+      pcap_freealldevs(allDevs);
 
       ripRouting.updateCycle = updateCycle;
       ripRouting.expireCycle = expireCycle;

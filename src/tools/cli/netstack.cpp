@@ -54,7 +54,7 @@ int initNetStack() {
   return startLoop();
 }
 
-void stopNetStack() {
+void stopLoop() {
   if (netThread) {
     auto task = LoopCallback::wrap([]() -> int { return 1; });
     loopDispatcher.invoke(&task);

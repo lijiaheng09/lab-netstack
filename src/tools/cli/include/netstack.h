@@ -43,6 +43,6 @@ int startLoop();
 /**
  * @brief Stop the netstack.
  */
-void stopNetStack();
+void stopLoop();
 
 #endif

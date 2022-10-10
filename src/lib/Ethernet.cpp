@@ -168,7 +168,7 @@ int Ethernet::NetBaseHandler::handle(const void *frame, int frameLen,
   int rc = 0;
   for (auto *c : ethernet.callbacks)
     if (c->etherType == -1 || c->etherType == etherType)
-      if (c->handle(&header + 1, frameLen, newInfo) != 0)
+      if (c->handle(&header + 1, frameLen - sizeof(Header), newInfo) != 0)
         rc = -1;
   return rc;
 }

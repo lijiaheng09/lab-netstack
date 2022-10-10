@@ -12,10 +12,16 @@ Command::~Command() {
 #include "commands/Devices.hpp"
 #include "commands/Control.hpp"
 #include "commands/FrameIO.hpp"
+
+#include "commands/EthTest.hpp"
+
 #include "commands/PacketIO.hpp"
 #include "commands/IPConfig.hpp"
+
 #include "commands/IPForward.hpp"
+
 #include "commands/UdpIO.hpp"
+
 #include "commands/AutoConfig.hpp"
 #include "commands/IPUtils.hpp"
 
@@ -23,16 +29,23 @@ std::vector<Command *> allCommands = {
   new CmdAddDevice(),
   new CmdFindDevice(),
   new CmdStartLoop(),
+
   new CmdSendFrame(),
   new CmdCaptureFrames(),
   new CmdCapturePackets(),
+
+  new CmdEthTest(),
+
   new CmdIPAddrAdd(),
   new CmdRouteAdd(),
   new CmdRouteRip(),
   new CmdRouteRipInfo(),
+
   new CmdIPForward(),
+
   new CmdNcUdpListen(),
   new CmdNcUdp(),
+
   new CmdAutoConfig(),
   new CmdPing(),
   new CmdTraceRoute()

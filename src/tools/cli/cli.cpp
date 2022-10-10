@@ -1,6 +1,9 @@
+#include <cerrno>
+#include <cstring>
 #include <cstdlib>
 
 #include <vector>
+#include <thread>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -19,8 +22,9 @@ static std::vector<char *> splitLine(char *line) {
       break;
     args.push_back(p);
 
-    p = strchr(p, ' ');
-    if (!p)
+    while (*p && !isspace(*p))
+      p++;
+    if (!*p)
       break;
     *p++ = '\0';
   }
@@ -78,22 +82,56 @@ int main(int argc, char **argv) {
     return rc;
   }
 
-  if (argc > 2 && strcmp(argv[1], "-c") == 0) {
+  if (argc > 2 && strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "-ci") == 0) {
     std::vector<char *> args(argv + 2, argv + argc);
     int rc = executeCommand(args);
-    if (rc != 0) {
-      stopNetStack();
+    if (strcmp(argv[1], "-ci") != 0) {
+      stopLoop();
       return rc;
     }
-    fprintf(stderr, "Waiting for interrupt...\n");
-    netThread->join();
-    return 0;
+  }
+
+  FILE *fp = nullptr;
+  bool interactive = true;
+  if (argc > 2 && strcmp(argv[1], "-f") == 0 || strcmp(argv[1], "-fi") == 0) {
+    fp = fopen(argv[2], "r");
+    if (!fp) {
+      fprintf(stderr, "open file %s error: %s\n", argv[2], strerror(errno));
+      stopLoop();
+      return 1;
+    }
+    if (strcmp(argv[1], "-fi") != 0)
+      interactive = false;
   }
 
   rl_attempted_completion_function = complete;
 
   while (true) {
-    char *line = readline("> ");
+    char *line = nullptr;
+    if (fp) {
+      static constexpr int MAX_LINE = 1000;
+      static char lineBuf[MAX_LINE];
+      if (!fgets(lineBuf, MAX_LINE, fp)) {
+        fclose(fp);
+        fp = nullptr;
+        if (!interactive) {
+          break;
+        }
+      } else {
+        if (interactive) {
+          using namespace std::chrono_literals;
+          printf("> ");
+          fflush(stdout);
+          std::this_thread::sleep_for(1s);
+          fputs(lineBuf, stdout);
+          fflush(stdout);
+        }
+        line = lineBuf;
+      }
+    }
+
+    if (!line)
+      line = readline("> ");
     if (!line) {
       putchar('\n');
       break;
@@ -110,6 +148,6 @@ int main(int argc, char **argv) {
       rc = executeCommand(args);
     }
   }
-  stopNetStack();
+  stopLoop();
   return 0;
 }
