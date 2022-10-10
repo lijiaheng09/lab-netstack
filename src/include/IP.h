@@ -81,6 +81,13 @@ public:
   void addAddr(const DevAddr &entry);
 
   /**
+   * @brief Get all assigned IP addresses.
+   * 
+   * @return The IP address table.
+   */
+  const Vector<DevAddr> &getAddrs();
+
+  /**
    * @brief Get any IP address of a device. If there is no such address, get any
    * of the host.
    *

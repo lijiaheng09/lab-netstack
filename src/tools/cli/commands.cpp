@@ -26,6 +26,7 @@ std::vector<Command *> allCommands = {
   new CmdCapturePackets(),
   new CmdIPAddrAdd(),
   new CmdRouteAdd(),
+  new CmdRouteRip(),
   new CmdIPForward(),
   new CmdNcUdpListen(),
   new CmdNcUdp()

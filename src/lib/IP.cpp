@@ -27,6 +27,10 @@ void IP::addAddr(const DevAddr &entry) {
   addrs.push_back(entry);
 }
 
+const Vector<IP::DevAddr> &IP::getAddrs() {
+  return addrs;
+}
+
 int IP::getAnyAddr(LinkLayer::Device *device, Addr &addr) {
   if (addrs.empty())
     return -1;

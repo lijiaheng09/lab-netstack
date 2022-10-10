@@ -22,7 +22,7 @@ class CmdNcUdpListen : public Command {
         remote = info.netHeader->src;
         remotePort = ntohs(header.srcPort);
         listen.store(false);
-        printf("[*] Recv from" IP_ADDR_FMT_STRING ":%d\n",
+        printf("[*] Recv from " IP_ADDR_FMT_STRING ":%d\n",
                IP_ADDR_FMT_ARGS(remote), remotePort);
       }
       int dataLen = len - sizeof(UDP::Header);

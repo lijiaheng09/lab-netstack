@@ -11,12 +11,14 @@
 #include "IPForward.h"
 #include "LpmRouting.h"
 #include "UDP.h"
+#include "RIP.h"
 
 extern NetBase netBase;
 extern Ethernet ethernet;
 extern IP ip;
-extern LpmRouting routing;
+extern LpmRouting staticRouting;
 extern UDP udp;
+extern RIP ripRouting;
 
 extern IPForward ipForward;
 

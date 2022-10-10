@@ -5,8 +5,9 @@
 NetBase netBase;
 Ethernet ethernet(netBase);
 IP ip(ethernet);
-LpmRouting routing;
+LpmRouting staticRouting;
 UDP udp(ip);
+RIP ripRouting(udp, ip, netBase);
 
 IPForward ipForward(ip);
 
@@ -48,7 +49,6 @@ int initNetStack() {
     return rc;
   }
 
-  ip.setRouting(&routing);
   netBase.addLoopCallback(&loopDispatcher);
 
   return startLoop();
