@@ -157,11 +157,12 @@ public:
    * @param src IP address of the source host.
    * @param dst IP address of the destination host.
    * @param protocol The `protocol` field of the packet.
+   * @param timeToLive The `time to live` field of the packet.
    *
    * @return 0 on success, negative on error.
    */
   int sendPacket(const void *data, int dataLen, const Addr &src,
-                 const Addr &dst, int protocol);
+                 const Addr &dst, int protocol, int timeToLive = 64);
 
   class RecvCallback {
   public:

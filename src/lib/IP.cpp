@@ -100,7 +100,7 @@ int IP::sendPacketWithHeader(void *packet, int packetLen) {
 }
 
 int IP::sendPacket(const void *data, int dataLen, const Addr &src,
-                   const Addr &dst, int protocol) {
+                   const Addr &dst, int protocol, int timeToLive) {
   int packetLen = sizeof(Header) + dataLen;
 
   if (dataLen < 0 || (packetLen >> 16) != 0) {
@@ -109,6 +109,10 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
   }
   if ((protocol >> 8) != 0) {
     ERRLOG("Invalid IP protocol field: %X\n", protocol);
+    return -1;
+  }
+  if ((timeToLive >> 8) != 0) {
+    ERRLOG("Invalid IP TTL field: %X\n", timeToLive);
     return -1;
   }
 
@@ -125,7 +129,7 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
     totalLength : htons(packetLen),
     identification : 0,
     flagsAndFragmentOffset : htons(0b010 << 13 | 0),
-    timeToLive : 64,
+    timeToLive : (uint8_t)timeToLive,
     protocol : (uint8_t)protocol,
     headerChecksum : 0,
     src : src,

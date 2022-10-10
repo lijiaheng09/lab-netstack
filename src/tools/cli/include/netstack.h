@@ -8,6 +8,7 @@
 #include "NetBase.h"
 #include "Ethernet.h"
 #include "IP.h"
+#include "ICMP.h"
 #include "IPForward.h"
 #include "LpmRouting.h"
 #include "UDP.h"

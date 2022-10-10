@@ -55,6 +55,7 @@ public:
 
   HopInfo match(const Addr &addr) override;
 
+  int sendRequest();
   int sendUpdate();
 
   class HashAddr {
@@ -71,6 +72,8 @@ public:
 private:
   Table table;
 
+  time_t updateTime;
+
   bool isUp;
 
   class UDPHandler : public UDP::RecvCallback {
@@ -83,7 +86,6 @@ private:
   } udpHandler;
 
   class LoopHandler : public LoopCallback {
-    time_t updateTime;
     RIP &rip;
 
   public:

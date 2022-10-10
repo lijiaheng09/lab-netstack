@@ -14,8 +14,8 @@ constexpr int RIP::METRIC_INF = 16;
 
 RIP::RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_)
     : udp(udp_), network(network_), netBase(netBase_), updateCycle(30),
-      isUp(false), expireCycle(180), cleanCycle(120), udpHandler(*this),
-      loopHandler(*this) {}
+      expireCycle(180), cleanCycle(120), updateTime(0), isUp(false),
+      udpHandler(*this), loopHandler(*this) {}
 
 int RIP::setup() {
   if (isUp) {
@@ -25,6 +25,8 @@ int RIP::setup() {
   isUp = true;
   udp.addRecvCallback(&udpHandler);
   netBase.addLoopCallback(&loopHandler);
+  sendRequest();
+  sendUpdate();
   return 0;
 }
 
@@ -36,8 +38,23 @@ IP::Routing::HopInfo RIP::match(const Addr &addr) {
   return HopInfo{device : nullptr, dstMAC : {}};
 }
 
+int RIP::sendRequest() {
+  UDP::NetworkLayer::Addr srcAddr;
+  if (udp.network.getAnyAddr(nullptr, srcAddr) < 0) {
+    ERRLOG("No IP address on the host.\n");
+    return -1;
+  }
+
+  Header header = {command : 1, version : 0, zero : 0};
+
+  return udp.sendSegment(&header, sizeof(Header), srcAddr, UDP_PORT,
+                         NetworkLayer::Addr::BROADCAST, UDP_PORT);
+}
+
 int RIP::sendUpdate() {
   time_t curTime = time(nullptr);
+
+  updateTime = curTime + updateCycle;
 
   UDP::NetworkLayer::Addr srcAddr;
   if (udp.network.getAnyAddr(nullptr, srcAddr) < 0) {
@@ -94,6 +111,12 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
     return -1;
   }
   const Header &header = *(const Header *)msg;
+
+  Header requestHeader{command : 1, version : 0, zero : 0};
+  if (memcmp(msg, &requestHeader, sizeof(Header)) == 0) {
+    return rip.sendUpdate();
+  }
+
   Header requriedHeader{command : 2, version : 0, zero : 0};
   if (memcmp(msg, &requriedHeader, sizeof(Header)) != 0) {
     ERRLOG("Invalid RIP header.\n");
@@ -148,11 +171,11 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
   return 0;
 }
 
-RIP::LoopHandler::LoopHandler(RIP &rip_) : rip(rip_), updateTime(0) {}
+RIP::LoopHandler::LoopHandler(RIP &rip_) : rip(rip_) {}
 
 int RIP::LoopHandler::handle() {
   time_t curTime = time(nullptr);
-  for (auto it = rip.table.begin(); it != rip.table.end(); ) {
+  for (auto it = rip.table.begin(); it != rip.table.end();) {
     auto &e = *it;
     if (curTime > e.second.expireTime)
       e.second.metric = METRIC_INF;
@@ -161,8 +184,7 @@ int RIP::LoopHandler::handle() {
     else
       it++;
   }
-  if (curTime >= updateTime) {
-    updateTime = curTime + rip.updateCycle;
+  if (curTime >= rip.updateTime) {
     rip.sendUpdate();
   }
   return 0;

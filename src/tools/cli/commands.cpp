@@ -17,6 +17,7 @@ Command::~Command() {
 #include "commands/IPForward.hpp"
 #include "commands/UdpIO.hpp"
 #include "commands/AutoConfig.hpp"
+#include "commands/IPUtils.hpp"
 
 std::vector<Command *> allCommands = {
   new CmdAddDevice(),
@@ -32,5 +33,7 @@ std::vector<Command *> allCommands = {
   new CmdIPForward(),
   new CmdNcUdpListen(),
   new CmdNcUdp(),
-  new CmdAutoConfig()
+  new CmdAutoConfig(),
+  new CmdPing(),
+  new CmdTraceRoute()
 };
