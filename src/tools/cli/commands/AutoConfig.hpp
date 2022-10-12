@@ -12,11 +12,16 @@ public:
   int main(int argc, char **argv) override {
     int rc = 0;
 
+    bool route = (argc > 1 && strcmp(argv[1], "-r") == 0);
     int updateCycle = 30, expireCycle = 180, cleanCycle = 120;
-    if (argc != 1 && (argc != 4 || sscanf(argv[1], "%d", &updateCycle) != 1 ||
-                      sscanf(argv[2], "%d", &expireCycle) != 1 ||
-                      sscanf(argv[3], "%d", &cleanCycle) != 1)) {
-      fprintf(stderr, "Usage: %s [update-cycle expire-cycle clean-cycle]\n", argv[0]);
+    if (argc != 1 &&
+        !(route && (argc == 2 ||
+                    (argc == 5 && sscanf(argv[2], "%d", &updateCycle) != 1 &&
+                     sscanf(argv[3], "%d", &expireCycle) != 1 &&
+                     sscanf(argv[4], "%d", &cleanCycle) != 1)))) {
+      fprintf(stderr,
+              "Usage: %s [-r [update-cycle expire-cycle clean-cycle]]\n",
+              argv[0]);
       return 1;
     }
 
@@ -60,23 +65,25 @@ public:
       }
       pcap_freealldevs(allDevs);
 
-      ripRouting.updateCycle = updateCycle;
-      ripRouting.expireCycle = expireCycle;
-      ripRouting.cleanCycle = cleanCycle;
-      if (ripRouting.setup() != 0) {
-        fprintf(stderr, "Error setting up RIP routing.\n");
-        rc = 1;
-        return;
-      }
-      ip.setRouting(&ripRouting);
-      printf("Set to RIP routing.\n");
+      if (route) {
+        ripRouting.updateCycle = updateCycle;
+        ripRouting.expireCycle = expireCycle;
+        ripRouting.cleanCycle = cleanCycle;
+        if (ripRouting.setup() != 0) {
+          fprintf(stderr, "Error setting up RIP routing.\n");
+          rc = 1;
+          return;
+        }
+        ip.setRouting(&ripRouting);
+        printf("Set to RIP routing.\n");
 
-      if (ipForward.setup() != 0) {
-        fprintf(stderr, "Error setting up IP forwarding.\n");
-        rc = 1;
-        return;
+        if (ipForward.setup() != 0) {
+          fprintf(stderr, "Error setting up IP forwarding.\n");
+          rc = 1;
+          return;
+        }
+        printf("Enabled IP forwarding.\n");
       }
-      printf("Enabled IP forwarding.\n");
 
       rc = 0;
     });

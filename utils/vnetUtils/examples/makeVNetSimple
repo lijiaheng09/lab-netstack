@@ -28,7 +28,6 @@ do
     eval ns$i=$ns
     ./addNS $ns
     ./execNS $ns ./disableForward
-    ./execNS $ns ./bypassKernel
 done
 
 while read line

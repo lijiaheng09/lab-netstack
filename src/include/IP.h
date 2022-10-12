@@ -37,6 +37,9 @@ public:
     friend bool operator==(const Addr &a, const Addr &b) {
       return a.num == b.num;
     }
+    friend bool operator!=(const Addr &a, const Addr &b) {
+      return a.num != b.num;
+    }
     friend Addr operator&(const Addr &a, const Addr &b) {
       return {num : a.num & b.num};
     }

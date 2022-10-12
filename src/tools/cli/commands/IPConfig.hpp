@@ -72,7 +72,7 @@ public:
       INVOKE({ rc = ripRouting.setEntry(entry.addr, entry.mask, rentry); })
     }
     if (rc != 0) {
-      fprintf(stderr, "Error setting routing entry.");
+      fprintf(stderr, "Error setting routing entry.\n");
       return 1;
     }
     return 0;
