@@ -105,6 +105,8 @@ public:
    */
   int getAnyAddr(LinkLayer::Device *device, Addr &addr);
 
+  int getSrcAddr(Addr dst, Addr &res);
+
   /**
    * @brief Find the device by its assigned IP address.
    *
@@ -123,6 +125,7 @@ public:
     using Addr = NetworkLayer::Addr;
 
     struct HopInfo {
+      Addr gateway;
       LinkLayer::Device *device; // The port to the next hop.
       LinkLayer::Addr dstMAC;    // The destination MAC address of the next hop.
     };

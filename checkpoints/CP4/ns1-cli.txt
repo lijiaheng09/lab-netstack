@@ -1,0 +1,13 @@
+auto-config -r 3 10 20
+ping 10.100.3.2
+route-rip-info
+!kill `cat /tmp/ns2_pid`
+ping 10.100.3.2
+route-rip-info
+!sleep 5
+route-rip-info
+!sleep 20
+route-rip-info
+!./execNS ns2 ../../../build/tools/cli -cw auto-config -r 3 10 20 &
+!sleep 3
+ping 10.100.3.2

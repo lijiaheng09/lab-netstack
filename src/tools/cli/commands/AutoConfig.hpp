@@ -16,9 +16,9 @@ public:
     int updateCycle = 30, expireCycle = 180, cleanCycle = 120;
     if (argc != 1 &&
         !(route && (argc == 2 ||
-                    (argc == 5 && sscanf(argv[2], "%d", &updateCycle) != 1 &&
-                     sscanf(argv[3], "%d", &expireCycle) != 1 &&
-                     sscanf(argv[4], "%d", &cleanCycle) != 1)))) {
+                    (argc == 5 && sscanf(argv[2], "%d", &updateCycle) == 1 &&
+                     sscanf(argv[3], "%d", &expireCycle) == 1 &&
+                     sscanf(argv[4], "%d", &cleanCycle) == 1)))) {
       fprintf(stderr,
               "Usage: %s [-r [update-cycle expire-cycle clean-cycle]]\n",
               argv[0]);

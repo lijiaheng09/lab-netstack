@@ -1,0 +1,109 @@
+Script started on 2022-10-12 12:46:27-07:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="95" LINES="11"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP6[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP6[00m$ source test.sh 
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP6
+++ cd ../../utils/vnetUtils/examples
+++ sudo ./makeVNetRaw
+++ cd ../helper
+++ for i in {1..6}
+++ [[ 1 != 2 ]]
+++ for i in {1..6}
+++ [[ 2 != 2 ]]
+++ for i in {1..6}
+++ [[ 3 != 2 ]]
+++ sudo ./execNS ns1 ../../../build/tools/cli -cw auto-config -r
+++ for i in {1..6}
+++ [[ 4 != 2 ]]
+++ for i in {1..6}
+++ [[ 5 != 2 ]]
+++ for i in {1..6}
+++ [[ 6 != 2 ]]
+++ sudo ./execNS ns2 ../../../build/tools/cli -fi /home/lijiaheng/lab-netstack/checkpoints/CP6/ns2-cli.txt
+++ sudo ./execNS ns4 ../../../build/tools/cli -cw auto-config -r
+++ sudo ./execNS ns5 ../../../build/tools/cli -cw auto-config -r
+++ sudo ./execNS ns6 ../../../build/tools/cli -cw auto-config -r
+++ sudo ./execNS ns3 ../../../build/tools/cli -cw auto-config -r
+> Device added: veth3-2
+    ether e2:41:ee:99:0d:04
+    inet 10.100.2.2 netmask 255.255.255.0
+Device added: veth4-3
+    ether ba:d4:3d:61:e0:7e
+    inet 10.100.3.2 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+Device added: veth1-2
+    ether f6:38:d2:02:1b:6a
+    inet 10.100.1.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+Device added: veth3-4
+    ether be:c6:83:fd:0b:8d
+    inet 10.100.3.1 netmask 255.255.255.0
+Device added: veth5-2
+    ether e6:a9:db:0f:3a:1b
+    inet 10.100.4.2 netmask 255.255.255.0
+Device added: veth5-6
+    ether 22:aa:38:b7:7b:9e
+    inet 10.100.5.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+Device added: veth6-5
+    ether 86:c2:1d:ea:3f:7a
+    inet 10.100.5.2 netmask 255.255.255.0
+Device added: veth3-6
+    ether f2:37:b7:f6:ed:e8
+    inet 10.100.6.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+Device added: veth6-3
+    ether 8a:ec:92:2f:ce:3d
+    inet 10.100.6.2 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+auto-config
+Device added: veth2-1
+    ether 42:3d:13:b0:e7:8f
+    inet 10.100.1.2 netmask 255.255.255.0
+Device added: veth2-3
+    ether 26:9e:f9:92:d8:83
+    inet 10.100.2.1 netmask 255.255.255.0
+Device added: veth2-5
+    ether 8a:df:fb:f0:bc:22
+    inet 10.100.4.1 netmask 255.255.255.0
+> route-add 10.100.3.1 255.255.255.255 veth2-3 10.100.2.2
+> route-add 10.100.3.0 255.255.255.0 veth2-5 10.100.4.2
+> route-add 10.100.0.0 255.255.0.0 veth2-3 10.100.2.2
+> route-add 10.100.1.0 255.255.255.0 veth2-1 10.100.1.1
+> traceroute 10.100.3.1
+1 10.100.3.1
+> traceroute 10.100.3.2
+1 10.100.4.2
+2 10.100.5.2
+3 10.100.6.1
+4 10.100.3.2
+> traceroute 10.100.4.2
+1 10.100.2.2
+2 10.100.6.2
+3 10.100.4.2
+> traceroute 10.100.5.2
+1 10.100.2.2
+2 10.100.5.2
+> traceroute 10.100.6.2
+1 10.100.2.2
+2 10.100.6.2
+> [K> 
+Loop breaked
+++ cd ../examples
+++ sudo ./removeVNet
+[1]   Done                    sudo ./execNS ns$i ../../../build/tools/cli -cw auto-config -r 2> /dev/null  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+[2]   Done                    sudo ./execNS ns$i ../../../build/tools/cli -cw auto-config -r 2> /dev/null  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+[3]   Done                    sudo ./execNS ns$i ../../../build/tools/cli -cw auto-config -r 2> /dev/null  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+[4]-  Done                    sudo ./execNS ns$i ../../../build/tools/cli -cw auto-config -r 2> /dev/null  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+[5]+  Done                    sudo ./execNS ns$i ../../../build/tools/cli -cw auto-config -r 2> /dev/null  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+]0;lijiaheng@ubuntu: ~/lab-netstack/utils/vnetUtils/examples[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/utils/vnetUtils/examples[00m$ exit
+
+Script done on 2022-10-12 12:46:47-07:00 [COMMAND_EXIT_CODE="0"]

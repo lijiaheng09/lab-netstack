@@ -3,6 +3,7 @@
 
 #include <mutex>
 #include <atomic>
+#include <random>
 
 class CmdPing : public Command {
   static constexpr int TIMES = 4;
@@ -45,7 +46,7 @@ public:
 
     IP::Addr src;
     int rc;
-    INVOKE({ rc = ip.getAnyAddr(nullptr, src); });
+    INVOKE({ rc = ip.getSrcAddr(host, src); });
     if (rc < 0) {
       fprintf(stderr, "No IP address on the host.\n");
       return rc;
@@ -105,6 +106,7 @@ public:
           int seq = ntohs(info.icmpHeader->seqNumber);
           printf(IP_ADDR_FMT_STRING "\n",
                  IP_ADDR_FMT_ARGS(info.netHeader->src));
+          fflush(stdout);
           finish.store(true);
           idle.unlock();
         }
@@ -119,6 +121,7 @@ public:
           int seq = ntohs(echoHeader->seqNumber);
           printf(IP_ADDR_FMT_STRING "\n",
                  IP_ADDR_FMT_ARGS(info.netHeader->src));
+          fflush(stdout);
           idle.unlock();
         }
       }
@@ -138,13 +141,14 @@ public:
 
     IP::Addr src;
     int rc;
-    INVOKE({ rc = ip.getAnyAddr(nullptr, src); });
+    INVOKE({ rc = ip.getSrcAddr(host, src); });
     if (rc < 0) {
       fprintf(stderr, "No IP address on the host.\n");
       return rc;
     }
 
-    int identifier = random() % 0xFFFF;
+    static std::random_device rndDev;
+    int identifier = rndDev() % 0xFFFF;
     const char data[] = "Lab-NetStack TraceRoute Test\n";
     std::timed_mutex idle;
     std::atomic<bool> finish;
@@ -167,6 +171,7 @@ public:
         break;
       if (!idle.try_lock_for(i * 2s)) {
         printf("*\n");
+        fflush(stdout);
         if (--err <= 0)
           break;
       } else if (finish.load()) {

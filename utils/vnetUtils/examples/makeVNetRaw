@@ -28,7 +28,9 @@ do
     eval ns$i=$ns
     ./addNS $ns
     ./execNS $ns ./disableForward
-    ./execNS $ns ./bypassKernel
+    if [[ $i != 0 ]]; then
+        ./execNS $ns ./bypassKernel
+    fi
 done
 
 while read line

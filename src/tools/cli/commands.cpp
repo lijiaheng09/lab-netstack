@@ -50,5 +50,7 @@ std::vector<Command *> allCommands = {
 
   new CmdAutoConfig(),
   new CmdPing(),
-  new CmdTraceRoute()
+  new CmdTraceRoute(),
+
+  new CmdSleep()
 };

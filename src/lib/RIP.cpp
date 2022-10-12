@@ -179,12 +179,16 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
         metric : metric,
         expireTime : curTime + rip.expireCycle
       };
-      rip.matchTable.setEntry({
-        addr : e.address,
-        mask : e.mask,
-        device : info.linkDevice,
-        gateway : info.netHeader->src,
-      });
+      if (metric < METRIC_INF) {
+        rip.matchTable.setEntry({
+          addr : e.address,
+          mask : e.mask,
+          device : info.linkDevice,
+          gateway : info.netHeader->src,
+        });
+      } else {
+        rip.matchTable.delEntry(e.address, e.mask);
+      }
     }
   }
 
@@ -202,10 +206,10 @@ int RIP::LoopHandler::handle() {
   for (auto it = rip.table.begin(); it != rip.table.end();) {
     auto &e = *it;
     if (e.second.expireTime) {
-      if (curTime > e.second.expireTime)
-        e.second.metric = METRIC_INF;
-      if (curTime - e.second.expireTime > rip.cleanCycle) {
+      if (curTime > e.second.expireTime) {
         rip.matchTable.delEntry(it->first.addr, it->first.mask);
+        e.second.metric = METRIC_INF;
+      } if (curTime - e.second.expireTime > rip.cleanCycle) {
         it = rip.table.erase(it);
         continue;
       }

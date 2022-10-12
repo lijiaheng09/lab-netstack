@@ -1,0 +1,36 @@
+auto-config -r 1 4 10
+sleep 5
+route-rip-info
+!echo =================
+!echo traceroute to ns4-ns1
+traceroute 10.100.1.1
+!echo =================
+!echo traceroute to ns4-ns2
+traceroute 10.100.1.2
+!echo =================
+!echo traceroute to ns4-ns3
+traceroute 10.100.2.2
+!echo =================
+!echo traceroute to ns4-ns5
+traceroute 10.100.4.2
+!echo =================
+!echo traceroute to ns4-ns6
+traceroute 10.100.5.2
+!echo !!!ns4 Done!!! >/dev/stderr
+sleep 15
+!echo !!!ns4: make sure now break ns5!!! >/dev/stderr
+route-rip-info
+!echo =================
+!echo traceroute to ns4-ns1
+traceroute 10.100.1.1
+!echo =================
+!echo traceroute to ns4-ns2
+traceroute 10.100.1.2
+!echo =================
+!echo traceroute to ns4-ns3
+traceroute 10.100.2.2
+!echo =================
+!echo traceroute to ns4-ns6
+traceroute 10.100.5.2
+!echo !!!ns4 Done 2!!! >/dev/stderr
+sleep 15

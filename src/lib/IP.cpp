@@ -44,6 +44,24 @@ int IP::getAnyAddr(LinkLayer::Device *device, Addr &addr) {
   return 0;
 }
 
+int IP::getSrcAddr(Addr dst, Addr &res) {
+  if (addrs.empty())
+    return -1;
+  Routing::HopInfo hop;
+  int rc = routing->match(dst, hop);
+  if (rc == 0)
+    return getAnyAddr(hop.device, res);
+  else if (rc == E_WAIT_FOR_TRYAGAIN && hop.gateway != Addr{0})
+    dst = hop.gateway;
+  for (auto &&e : addrs)
+    if ((e.addr & e.mask) == (dst & e.mask)) {
+      res = e.addr;
+      return 1;
+    }
+  res = addrs.front().addr;
+  return 0;
+}
+
 IP::LinkLayer::Device *IP::findDeviceByAddr(const Addr &addr) {
   for (auto &&a : addrs)
     if (a.addr == addr)
@@ -117,9 +135,9 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
       if (originalCallback)
         originalCallback();
     };
-    rc = routing->match(header.dst, hop, options.waitingCallback);
   }
 
+  rc = routing->match(header.dst, hop, options.waitingCallback);
   if (rc < 0) {
     if (rc == E_WAIT_FOR_TRYAGAIN)
       ERRLOG("IP routing for " IP_ADDR_FMT_STRING ": wait to try again.\n",

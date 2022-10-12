@@ -8,16 +8,15 @@ int LpmRouting::match(const Addr &addr, HopInfo &res,
                       std::function<void()> waitingCallback) {
   int rc = -1;
   Addr curMask = {0};
-  Addr gateway;
   for (auto &&e : table)
     if ((addr & e.mask) == e.addr && (e.mask & curMask) == curMask) {
       res.device = e.device;
-      gateway = e.gateway;
+      res.gateway = e.gateway;
       curMask = e.mask;
       rc = 0;
     }
   if (rc == 0) {
-    Addr nextAddr = gateway == Addr{0} ? addr : gateway;
+    Addr nextAddr = res.gateway == Addr{0} ? addr : res.gateway;
     rc = arp.match(nextAddr, res.dstMAC, waitingCallback);
   }
   return rc;

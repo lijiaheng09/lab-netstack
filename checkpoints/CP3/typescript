@@ -1,0 +1,42 @@
+Script started on 2022-10-12 08:36:26-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="113" LINES="24"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP3[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP3[00m$ ./test.sh 
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP3
+++ cd ../../utils/vnetUtils/examples
+++ sudo ./makeVNet
+++ cd ../helper
+++ sudo ./execNS ns1 /home/lijiaheng/lab-netstack/checkpoints/CP3/ns1.sh
+> tcpdump: listening on veth1-2, link-type EN10MB (Ethernet), capture size 262144 bytes
+auto-config
+Device added: veth1-2
+    ether 42:47:83:b2:2e:cc
+    inet 10.100.1.1 netmask 255.255.255.0
+> route-add 0.0.0.0 0.0.0.0 veth1-2 10.100.1.2
+> ping 10.100.3.2
+Send 1
+IP routing for 10.100.3.2: wait to try again.
+32 bytes from 10.100.3.2: icmp_seq=1 ttl=62
+1 packet captured
+2 packets received by filter
+0 packets dropped by kernel
+Send 2
+32 bytes from 10.100.3.2: icmp_seq=2 ttl=62
+Send 3
+32 bytes from 10.100.3.2: icmp_seq=3 ttl=62
+Send 4
+32 bytes from 10.100.3.2: icmp_seq=4 ttl=62
+> 
+Loop breaked
+++ cd ../examples
+++ sudo ./remove
+sudo: ./remove: command not found
+++ tcpdump -XX -r /home/lijiaheng/lab-netstack/checkpoints/CP3/capture.pcap
+reading from file /home/lijiaheng/lab-netstack/checkpoints/CP3/capture.pcap, link-type EN10MB (Ethernet)
+08:36:33.694000 IP localhost > localhost: ICMP echo request, id 45298, seq 1, length 32
+	0x0000:  9af1 db8d 59ba 4247 83b2 2ecc 0800 4500  ....Y.BG......E.
+	0x0010:  0034 0000 4000 4001 21ff 0a64 0101 0a64  .4..@.@.!..d...d
+	0x0020:  0302 0800 3b3f b0f2 0001 4c61 622d 4e65  ....;?....Lab-Ne
+	0x0030:  7453 7461 636b 2050 696e 6720 5465 7374  tStack.Ping.Test
+	0x0040:  0a00                                     ..
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP3[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP3[00m$ exit
+
+Script done on 2022-10-12 08:36:40-07:00 [COMMAND_EXIT_CODE="0"]

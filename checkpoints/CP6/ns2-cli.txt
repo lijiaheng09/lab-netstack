@@ -1,0 +1,10 @@
+auto-config
+route-add 10.100.3.1 255.255.255.255 veth2-3 10.100.2.2
+route-add 10.100.3.0 255.255.255.0 veth2-5 10.100.4.2
+route-add 10.100.0.0 255.255.0.0 veth2-3 10.100.2.2
+route-add 10.100.1.0 255.255.255.0 veth2-1 10.100.1.1
+traceroute 10.100.3.1
+traceroute 10.100.3.2
+traceroute 10.100.4.2
+traceroute 10.100.5.2
+traceroute 10.100.6.2

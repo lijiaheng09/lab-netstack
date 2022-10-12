@@ -1,0 +1,128 @@
+Script started on 2022-10-12 09:59:22-07:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="95" LINES="15"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP4[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP4[00m$ source test.sh
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP4
+++ cd ../../utils/vnetUtils/examples
+++ sudo ./makeVNetRaw
+++ cd ../helper
+++ sleep 1
+++ sudo ./execNS ns2 ../../../build/tools/cli -cw auto-config -r 3 10 20
+Device added: veth2-1
+    ether b2:50:7e:58:a8:1b
+    inet 10.100.1.2 netmask 255.255.255.0
+Device added: veth2-3
+    ether e6:19:cb:df:5a:09
+    inet 10.100.2.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
++++ ps -C cli -o pid=
+++ NS2_PID=' 235846'
+++ sleep 1
+++ sleep 1
+++ sudo ./execNS ns3 ../../../build/tools/cli -cw auto-config -r 3 10 20
+Device added: veth3-2
+    ether 7e:5f:0a:b6:62:a2
+    inet 10.100.2.2 netmask 255.255.255.0
+Device added: veth3-4
+    ether 66:b8:f6:c4:a7:75
+    inet 10.100.3.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+++ sleep 1
+++ sudo ./execNS ns4 ../../../build/tools/cli -cw auto-config -r 3 10 20
+Device added: veth4-3
+    ether b2:94:2b:51:20:ba
+    inet 10.100.3.2 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+++ echo CLI on ns2 has PID 235846
+CLI on ns2 has PID 235846
+++ echo 235846
+++ sudo ./execNS ns1 ../../../build/tools/cli -fi /home/lijiaheng/lab-netstack/checkpoints/CP4/ns1-cli.txt
+> auto-config -r 3 10 20
+Device added: veth1-2
+    ether 06:07:fc:d4:61:39
+    inet 10.100.1.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+> ping 10.100.3.2
+Send 1
+IP routing for 10.100.3.2: wait to try again.
+IP routing for 10.100.3.2: wait to try again.
+IP routing for 10.100.3.2: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+32 bytes from 10.100.3.2: icmp_seq=1 ttl=62
+Send 2
+32 bytes from 10.100.3.2: icmp_seq=2 ttl=62
+Send 3
+32 bytes from 10.100.3.2: icmp_seq=3 ttl=62
+Send 4
+32 bytes from 10.100.3.2: icmp_seq=4 ttl=62
+> route-rip-info
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.2.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 1 | +8
+10.100.3.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 2 | +8
+10.100.1.0 | 255.255.255.0 | veth1-2 | 0.0.0.0 | 0 | -1665593976
+> !kill `cat /tmp/ns2_pid`
+> Terminated
+ping 10.100.3.2
+Send 1
+Send 2
+Send 3
+Send 4
+Time out.
+> route-rip-info
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.2.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 1 | +4
+10.100.3.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 2 | +4
+10.100.1.0 | 255.255.255.0 | veth1-2 | 0.0.0.0 | 0 | -1665593983
+> !sleep 5
+> route-rip-info
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.2.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 16 | -3
+10.100.3.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 16 | -3
+10.100.1.0 | 255.255.255.0 | veth1-2 | 0.0.0.0 | 0 | -1665593990
+> !sleep 20
+> route-rip-info
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.1.0 | 255.255.255.0 | veth1-2 | 0.0.0.0 | 0 | -1665594012
+> !./execNS ns2 ../../../build/tools/cli -cw auto-config -r 3 10 20 &
+> Device added: veth2-1
+    ether b2:50:7e:58:a8:1b
+    inet 10.100.1.2 netmask 255.255.255.0
+Device added: veth2-3
+    ether e6:19:cb:df:5a:09
+    inet 10.100.2.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+!sleep 3
+> ping 10.100.3.2
+Send 1
+IP routing for 10.100.3.2: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+32 bytes from 10.100.3.2: icmp_seq=1 ttl=62
+Send 2
+32 bytes from 10.100.3.2: icmp_seq=2 ttl=62
+Send 3
+32 bytes from 10.100.3.2: icmp_seq=3 ttl=62
+Send 4
+32 bytes from 10.100.3.2: icmp_seq=4 ttl=62
+> 
+Loop breaked
+[1]   Exit 143                sudo ./execNS ns2 ../../../build/tools/cli -cw auto-config -r 3 10 20
+++ cd ../examples
+++ sudo ./removeVNet
+pcap_dispatch (device veth2-1) error: The interface disappeared
+Loop breaked
+pcap_dispatch (device veth3-2) error: The interface disappeared
+Loop breaked
+pcap_dispatch (device veth4-3) error: The interface disappeared
+Loop breaked
+[2]-  Done                    sudo ./execNS ns3 ../../../build/tools/cli -cw auto-config -r 3 10 20  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+[3]+  Done                    sudo ./execNS ns4 ../../../build/tools/cli -cw auto-config -r 3 10 20  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+]0;lijiaheng@ubuntu: ~/lab-netstack/utils/vnetUtils/examples[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/utils/vnetUtils/examples[00m$ exit
+
+Script done on 2022-10-12 10:00:27-07:00 [COMMAND_EXIT_CODE="0"]

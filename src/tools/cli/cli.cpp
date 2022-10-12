@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
 
   FILE *fp = nullptr;
   bool interactive = true;
+  bool doWait = false;
   if (argc > 2 && argv[1][0] == '-' && argv[1][1] == 'f') {
     fp = fopen(argv[2], "r");
     if (!fp) {
@@ -106,6 +107,8 @@ int main(int argc, char **argv) {
     }
     if (argv[1][2] != 'i')
       interactive = false;
+    if (argv[1][2] == 'w')
+      doWait = true;
   }
 
   rl_attempted_completion_function = complete;
@@ -152,6 +155,8 @@ int main(int argc, char **argv) {
       rc = executeCommand(args);
     }
   }
+  if (doWait)
+    netThread->join();
   stopLoop();
   return 0;
 }

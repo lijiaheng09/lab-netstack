@@ -103,7 +103,7 @@ public:
       return 1;
     }
 
-    if (ip.getAnyAddr(nullptr, src) < 0) {
+    if (ip.getSrcAddr(remote, src) < 0) {
       fprintf(stderr, "No IP address on the host\n");
       return 1;
     }

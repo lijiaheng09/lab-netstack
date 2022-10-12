@@ -1,0 +1,383 @@
+Script started on 2022-10-12 11:18:50-07:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="95" LINES="16"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP5[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP5[00m$ source test.sh 
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP5
+++ cd ../../utils/vnetUtils/examples
+++ sudo ./makeVNetRaw
+++ cd ../helper
+++ for i in {1..6}
+++ for i in {1..6}
+++ sudo ./execNS ns1 ../../../build/tools/cli -f /home/lijiaheng/lab-netstack/checkpoints/CP5/scripts/ns1-cli.txt
+++ for i in {1..6}
+++ for i in {1..6}
+++ for i in {1..6}
+++ for i in {1..6}
+++ set +x
+]0;lijiaheng@ubuntu: ~/lab-netstack/utils/vnetUtils/helper[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/utils/vnetUtils/helper[00m$ ++ sudo ./execNS ns2 ../../../build/tools/cli -f /home/lijiaheng/lab-netstack/checkpoints/CP5/scripts/ns2-cli.txt
+++ sudo ./execNS ns3 ../../../build/tools/cli -f /home/lijiaheng/lab-netstack/checkpoints/CP5/scripts/ns3-cli.txt
+++ sudo ./execNS ns4 ../../../build/tools/cli -f /home/lijiaheng/lab-netstack/checkpoints/CP5/scripts/ns4-cli.txt
+++ sudo ./execNS ns5 ../../../build/tools/cli -f /home/lijiaheng/lab-netstack/checkpoints/CP5/scripts/ns5-cli.txt
+++ sudo ./execNS ns6 ../../../build/tools/cli -f /home/lijiaheng/lab-netstack/checkpoints/CP5/scripts/ns6-cli.txt
+IP routing for 10.100.1.1: wait to try again.
+IP routing for 10.100.1.2: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+IP routing for 10.100.3.2: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+IP routing for 10.100.3.2: wait to try again.
+IP routing for 10.100.4.2: wait to try again.
+IP routing for 10.100.1.1: wait to try again.
+IP routing for 10.100.5.2: wait to try again.
+IP routing for 10.100.5.2: wait to try again.
+!!!ns2 Done!!!
+!!!ns3 Done!!!
+IP routing for 10.100.4.2: wait to try again.
+!!!ns5 Done!!!
+!!!ns1 Done!!!
+!!!ns4 Done!!!
+!!!ns6 Done!!!
+!!!ns5 break!!!
+Loop breaked
+!!!ns2: make sure now break ns5!!!
+!!!ns3: make sure now break ns5!!!
+!!!ns1: make sure now break ns5!!!
+!!!ns4: make sure now break ns5!!!
+!!!ns2 Done 2!!!
+!!!ns6: make sure now break ns5!!!
+!!!ns3 Done 2!!!
+!!!ns1 Done 2!!!
+!!!ns4 Done 2!!!
+!!!ns6 Done 2!!!
+Loop breaked
+Loop breaked
+Loop breaked
+Loop breaked
+Loop breaked
+
+[1]   Done                    sudo ./execNS ns$i ../../../build/tools/cli -f $C/scripts/ns$i-cli.txt > $C/outs/ns$i.out
+[2]   Done                    sudo ./execNS ns$i ../../../build/tools/cli -f $C/scripts/ns$i-cli.txt > $C/outs/ns$i.out
+[3]   Done                    sudo ./execNS ns$i ../../../build/tools/cli -f $C/scripts/ns$i-cli.txt > $C/outs/ns$i.out
+[4]   Done                    sudo ./execNS ns$i ../../../build/tools/cli -f $C/scripts/ns$i-cli.txt > $C/outs/ns$i.out
+[5]-  Done                    sudo ./execNS ns$i ../../../build/tools/cli -f $C/scripts/ns$i-cli.txt > $C/outs/ns$i.out
+[6]+  Done                    sudo ./execNS ns$i ../../../build/tools/cli -f $C/scripts/ns$i-cli.txt > $C/outs/ns$i.out
+]0;lijiaheng@ubuntu: ~/lab-netstack/utils/vnetUtils/helper[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/utils/vnetUtils/helper[00m$ for i[K[K[K[K[Kcd $C
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP5[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP5[00m$ for i in {1..6}; cat outs/$i[K[Ks[Kns$i.t[Kout
+bash: syntax error near unexpected token `cat'
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP5[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP5[00m$ for i in {1..6}; cat outs/ns$i.out[1@d[1@o[1@ [C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C do[K[K[K; done
+=================
+traceroute to ns1-ns2
+Device added: veth1-2
+    ether 82:46:c5:58:d1:30
+    inet 10.100.1.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.6.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 2 | +4
+10.100.3.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 2 | +4
+10.100.5.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 2 | +4
+10.100.2.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 1 | +4
+10.100.4.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 1 | +4
+10.100.1.0 | 255.255.255.0 | veth1-2 | 0.0.0.0 | 0 | -1665598740
+1 10.100.1.2
+=================
+traceroute to ns1-ns3
+1 10.100.1.2
+2 10.100.2.2
+=================
+traceroute to ns1-ns4
+1 10.100.1.2
+2 10.100.2.2
+3 10.100.3.2
+=================
+traceroute to ns1-ns5
+1 10.100.1.2
+2 10.100.4.2
+=================
+traceroute to ns1-ns6
+1 10.100.1.2
+2 10.100.4.2
+3 10.100.5.2
+=================
+traceroute to ns1-ns2
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.6.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 2 | +4
+10.100.3.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 2 | +4
+10.100.5.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 3 | +4
+10.100.2.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 1 | +4
+10.100.4.0 | 255.255.255.0 | veth1-2 | 10.100.1.2 | 1 | +4
+10.100.1.0 | 255.255.255.0 | veth1-2 | 0.0.0.0 | 0 | -1665598755
+1 10.100.1.2
+=================
+traceroute to ns1-ns3
+1 10.100.1.2
+2 10.100.2.2
+=================
+traceroute to ns1-ns4
+1 10.100.1.2
+2 10.100.2.2
+3 10.100.3.2
+=================
+traceroute to ns1-ns6
+1 10.100.1.2
+2 10.100.2.2
+3 10.100.5.2
+=================
+traceroute to ns2-ns1
+Device added: veth2-1
+    ether d6:f1:e2:ce:ed:99
+    inet 10.100.1.2 netmask 255.255.255.0
+Device added: veth2-3
+    ether 3e:93:dd:2b:6a:47
+    inet 10.100.2.1 netmask 255.255.255.0
+Device added: veth2-5
+    ether fa:86:83:ca:35:2e
+    inet 10.100.4.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.3.0 | 255.255.255.0 | veth2-3 | 10.100.2.2 | 1 | +4
+10.100.6.0 | 255.255.255.0 | veth2-3 | 10.100.2.2 | 1 | +4
+10.100.5.0 | 255.255.255.0 | veth2-5 | 10.100.4.2 | 1 | +4
+10.100.4.0 | 255.255.255.0 | veth2-5 | 0.0.0.0 | 0 | -1665598740
+10.100.2.0 | 255.255.255.0 | veth2-3 | 0.0.0.0 | 0 | -1665598740
+10.100.1.0 | 255.255.255.0 | veth2-1 | 0.0.0.0 | 0 | -1665598740
+1 10.100.1.1
+=================
+traceroute to ns2-ns3
+1 10.100.2.2
+=================
+traceroute to ns2-ns4
+1 10.100.2.2
+2 10.100.3.2
+=================
+traceroute to ns2-ns5
+1 10.100.4.2
+=================
+traceroute to ns2-ns6
+1 10.100.4.2
+2 10.100.5.2
+=================
+traceroute to ns2-ns1
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.3.0 | 255.255.255.0 | veth2-3 | 10.100.2.2 | 1 | +4
+10.100.6.0 | 255.255.255.0 | veth2-3 | 10.100.2.2 | 1 | +4
+10.100.5.0 | 255.255.255.0 | veth2-3 | 10.100.2.2 | 2 | +4
+10.100.4.0 | 255.255.255.0 | veth2-5 | 0.0.0.0 | 0 | -1665598755
+10.100.2.0 | 255.255.255.0 | veth2-3 | 0.0.0.0 | 0 | -1665598755
+10.100.1.0 | 255.255.255.0 | veth2-1 | 0.0.0.0 | 0 | -1665598755
+1 10.100.1.1
+=================
+traceroute to ns2-ns3
+1 10.100.2.2
+=================
+traceroute to ns2-ns4
+1 10.100.2.2
+2 10.100.3.2
+=================
+traceroute to ns2-ns6
+1 10.100.2.2
+2 10.100.5.2
+=================
+traceroute to ns3-ns1
+Device added: veth3-2
+    ether a6:4f:4c:05:69:25
+    inet 10.100.2.2 netmask 255.255.255.0
+Device added: veth3-4
+    ether 9e:56:77:3e:d1:b7
+    inet 10.100.3.1 netmask 255.255.255.0
+Device added: veth3-6
+    ether da:a0:04:b3:37:77
+    inet 10.100.6.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.5.0 | 255.255.255.0 | veth3-6 | 10.100.5.2 | 1 | +4
+10.100.1.0 | 255.255.255.0 | veth3-2 | 10.100.1.2 | 1 | +4
+10.100.4.0 | 255.255.255.0 | veth3-2 | 10.100.1.2 | 1 | +4
+10.100.6.0 | 255.255.255.0 | veth3-6 | 0.0.0.0 | 0 | -1665598740
+10.100.3.0 | 255.255.255.0 | veth3-4 | 0.0.0.0 | 0 | -1665598740
+10.100.2.0 | 255.255.255.0 | veth3-2 | 0.0.0.0 | 0 | -1665598740
+1 10.100.2.1
+2 10.100.1.1
+=================
+traceroute to ns3-ns2
+1 10.100.1.2
+=================
+traceroute to ns3-ns4
+1 10.100.3.2
+=================
+traceroute to ns3-ns5
+1 10.100.2.1
+2 10.100.4.2
+=================
+traceroute to ns3-ns6
+1 10.100.5.2
+=================
+traceroute to ns3-ns1
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.5.0 | 255.255.255.0 | veth3-6 | 10.100.5.2 | 1 | +4
+10.100.1.0 | 255.255.255.0 | veth3-2 | 10.100.1.2 | 1 | +4
+10.100.4.0 | 255.255.255.0 | veth3-2 | 10.100.1.2 | 1 | +4
+10.100.6.0 | 255.255.255.0 | veth3-6 | 0.0.0.0 | 0 | -1665598755
+10.100.3.0 | 255.255.255.0 | veth3-4 | 0.0.0.0 | 0 | -1665598755
+10.100.2.0 | 255.255.255.0 | veth3-2 | 0.0.0.0 | 0 | -1665598755
+1 10.100.2.1
+2 10.100.1.1
+=================
+traceroute to ns3-ns2
+1 10.100.1.2
+=================
+traceroute to ns3-ns4
+1 10.100.3.2
+=================
+traceroute to ns3-ns6
+1 10.100.5.2
+=================
+traceroute to ns4-ns1
+Device added: veth4-3
+    ether 9a:dd:7b:ad:6e:e3
+    inet 10.100.3.2 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.5.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 2 | +4
+10.100.4.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 2 | +4
+10.100.1.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 2 | +4
+10.100.2.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 1 | +4
+10.100.6.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 1 | +4
+10.100.3.0 | 255.255.255.0 | veth4-3 | 0.0.0.0 | 0 | -1665598740
+1 10.100.3.1
+2 10.100.2.1
+3 10.100.1.1
+=================
+traceroute to ns4-ns2
+1 10.100.3.1
+2 10.100.1.2
+=================
+traceroute to ns4-ns3
+1 10.100.2.2
+=================
+traceroute to ns4-ns5
+1 10.100.3.1
+2 10.100.2.1
+3 10.100.4.2
+=================
+traceroute to ns4-ns6
+1 10.100.3.1
+2 10.100.5.2
+=================
+traceroute to ns4-ns1
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.5.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 2 | +4
+10.100.4.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 2 | +4
+10.100.1.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 2 | +4
+10.100.2.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 1 | +4
+10.100.6.0 | 255.255.255.0 | veth4-3 | 10.100.2.2 | 1 | +4
+10.100.3.0 | 255.255.255.0 | veth4-3 | 0.0.0.0 | 0 | -1665598755
+1 10.100.3.1
+2 10.100.2.1
+3 10.100.1.1
+=================
+traceroute to ns4-ns2
+1 10.100.3.1
+2 10.100.1.2
+=================
+traceroute to ns4-ns3
+1 10.100.2.2
+=================
+traceroute to ns4-ns6
+1 10.100.3.1
+2 10.100.5.2
+=================
+traceroute to ns5-ns1
+Device added: veth5-2
+    ether 62:97:71:f6:ef:b5
+    inet 10.100.4.2 netmask 255.255.255.0
+Device added: veth5-6
+    ether 9a:0d:19:5a:d8:fd
+    inet 10.100.5.1 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.6.0 | 255.255.255.0 | veth5-6 | 10.100.5.2 | 1 | +4
+10.100.3.0 | 255.255.255.0 | veth5-2 | 10.100.1.2 | 2 | +4
+10.100.1.0 | 255.255.255.0 | veth5-2 | 10.100.1.2 | 1 | +4
+10.100.2.0 | 255.255.255.0 | veth5-2 | 10.100.1.2 | 1 | +4
+10.100.5.0 | 255.255.255.0 | veth5-6 | 0.0.0.0 | 0 | -1665598740
+10.100.4.0 | 255.255.255.0 | veth5-2 | 0.0.0.0 | 0 | -1665598740
+1 10.100.4.1
+2 10.100.1.1
+=================
+traceroute to ns5-ns2
+1 10.100.1.2
+=================
+traceroute to ns5-ns3
+1 10.100.4.1
+2 10.100.2.2
+=================
+traceroute to ns5-ns4
+1 10.100.4.1
+2 10.100.2.2
+3 10.100.3.2
+=================
+traceroute to ns5-ns6
+1 10.100.5.2
+=================
+traceroute to ns6-ns1
+Device added: veth6-5
+    ether a6:48:d3:9b:a4:66
+    inet 10.100.5.2 netmask 255.255.255.0
+Device added: veth6-3
+    ether ca:6c:f8:98:84:0f
+    inet 10.100.6.2 netmask 255.255.255.0
+Set to RIP routing.
+Enabled IP forwarding.
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.2.0 | 255.255.255.0 | veth6-3 | 10.100.2.2 | 1 | +4
+10.100.3.0 | 255.255.255.0 | veth6-3 | 10.100.2.2 | 1 | +4
+10.100.4.0 | 255.255.255.0 | veth6-5 | 10.100.4.2 | 1 | +4
+10.100.1.0 | 255.255.255.0 | veth6-3 | 10.100.2.2 | 2 | +4
+10.100.6.0 | 255.255.255.0 | veth6-3 | 0.0.0.0 | 0 | -1665598740
+10.100.5.0 | 255.255.255.0 | veth6-5 | 0.0.0.0 | 0 | -1665598740
+1 10.100.6.1
+2 10.100.2.1
+3 10.100.1.1
+=================
+traceroute to ns6-ns2
+1 10.100.6.1
+2 10.100.1.2
+=================
+traceroute to ns6-ns3
+1 10.100.2.2
+=================
+traceroute to ns6-ns4
+1 10.100.6.1
+2 10.100.3.2
+=================
+traceroute to ns6-ns5
+1 10.100.4.2
+=================
+traceroute to ns6-ns1
+IP | Mask | Device | Gateway | Metric | Exipre
+10.100.2.0 | 255.255.255.0 | veth6-3 | 10.100.2.2 | 1 | +4
+10.100.3.0 | 255.255.255.0 | veth6-3 | 10.100.2.2 | 1 | +4
+10.100.4.0 | 255.255.255.0 | veth6-3 | 10.100.2.2 | 2 | +4
+10.100.1.0 | 255.255.255.0 | veth6-3 | 10.100.2.2 | 2 | +4
+10.100.6.0 | 255.255.255.0 | veth6-3 | 0.0.0.0 | 0 | -1665598755
+10.100.5.0 | 255.255.255.0 | veth6-5 | 0.0.0.0 | 0 | -1665598755
+1 10.100.6.1
+2 10.100.2.1
+3 10.100.1.1
+=================
+traceroute to ns6-ns2
+1 10.100.6.1
+2 10.100.1.2
+=================
+traceroute to ns6-ns3
+1 10.100.2.2
+=================
+traceroute to ns6-ns4
+1 10.100.6.1
+2 10.100.3.2
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP5[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP5[00m$ exit
+
+Script done on 2022-10-12 11:20:13-07:00 [COMMAND_EXIT_CODE="0"]
