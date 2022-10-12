@@ -1,12 +1,15 @@
 \documentclass[a4paper]{article}
 
 \usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{minted}
 \usepackage{indentfirst}
 
 \geometry{scale=0.8}
 
 \title{PKU-CompNet (H) Fall'22 \\ Lab Assignment (Premium): Protocol Stack \\ Report}
 \author{Jiaheng Li (2000013054)}
+\date{October 12, 2022}
 
 \begin{document}
   \maketitle
@@ -34,39 +37,303 @@
 
   \subsection{Programming Task 1 (PT1)}
 
-  The required functions are implemented in \texttt{src/lib/device.c}, which maintains a linear structure of \texttt{Device} objects declared in \texttt{src/include/internal/device.h}, containing basic information of the devices and their runtime handlers for management.
+  (For the convenience of later tasks, the code is reconstructed when implementing the network layer. Therefore, the description here may be different from the version submitted before in Lab 1.)
+
+  We design the interface a bit differently from the reference in the instruction, and so do the tasks below.
+
+  For this task, we design class \texttt{NetBase} and \texttt{Ethernet} (in \texttt{src/include/\{NetBase, Ethernet\}.h} and implementation in \texttt{src/lib/\{NetBase, Ethernet\}.c}).
+
+  The class \texttt{NetBase} is for managing \texttt{pcap} ``devices'' and flows, while class \texttt{Ethernet} built on the former is for managing Ethernet devices (with Ethernet address...).
+
+  Methods for the required functions are:
+  \begin{minted}{cpp}
+Ethernet::Device *Ethernet::addDeviceByName(const char *name);
+Ethernet::Device *Ethernet::findDeviceByName(const char *name);
+  \end{minted}
+  while more documents are provided in the Doxygen-style comment in the header files.
+
+  The handler (descriptor) for devices is \texttt{Ethernet::Device *}.
+
+  The method finds the device by its name through \texttt{pcap\_findalldevs()} and gets its Ethernet address.
+  Then it opens the \texttt{pcap} flow, and creates the \texttt{Device} object for management.
 
   \subsection{Programming Task 2 (PT2)}
 
-  The required functions are implemented in \texttt{src/lib/packetio.c}.
+  The class \texttt{Ethernet} also supports sending and receiving Ethernet frames.
 
-  For a \texttt{sendFrame()} call, it simply get information from the \texttt{devices} structure, allocate space to put each element of an Ethernet II frame in order, and then call \texttt{pcap\_sendpacket()} to send it out.
+  Methods for the required functions are:
+  \begin{minted}{cpp}
+int Ethernet::Device::sendFrame(const void *data, int dataLen, const Addr &dst,
+                                int etherType);
 
-  For \texttt{setFrameReceiveCallback()}, it simply modifies the global pointer to the callback.
+class RecvCallback {
+public:
+  int etherType; // The matching etherType, -1 for any.
+  virtual int handle(const void *data, int dataLen, const Info &info) = 0;
+};
+void Ethernet::addRecvCallback(RecvCallback *callback);
+  \end{minted}
 
-  To receive frames, a thread is created in each successful \texttt{addDevice()}, continously running \texttt{pcap\_loop()} to call the receiving callback for that device.
+  The \texttt{sendFrame()} method simply adds the Ethernet header and send it through \texttt{pcap\_sendpacket()}.
 
-  The global data about devices and the callback are protected through atomic variables or mutexes.
+  The \texttt{addRecvCallback()} method simply adds the callback to a list.
+
+  To receive packets, we should call \texttt{NetBase::setup()}, \texttt{Ethernet::setup()}, and finally \texttt{NetBase::loop()}.
+  \texttt{NetBase::loop()} will loop forever (if not interrupted), checking for each \texttt{pcap} devices for new receiving frames using the ``nonblocking mode'' and \texttt{pcap\_dispatch()}, and then invokes the callback from \texttt{Ethernet} (or other registered) for each frame.
+  It also provides an interface for callback in each loop iteration, allowing users to handle their work.
+
+  All the routines in the network stack library run on a single thread (and are required to do so).
+  For application, they may create a separate thread for the network stack library, and work on another user thread, using something like a ``task dispatcher'' to synchronize with the loop callbacks.
+  
+  We implemented a CLI program (in \texttt{src/tools/cli/}, and will be built to \texttt{build/tools/cli}), allowing users to interactively test the library.
+  It uses a task dispatcher (in \texttt{src/include/LoopDispatcher.h}) to send tasks about the network stack to the network thread, and uses mutexes to wait for completion in the user thread.
+
+  The CLI program uses the GNU Readline Library (\texttt{libreadline-dev}) (only) for easier interaction.
 
   \subsection{Checkpoint 1 (CP1)}
   
   The typescript record is at \texttt{checkpoints/CP1/\{typescript, timing.log\}}.
 
-  For convenient testing, a \texttt{console} tool is implemented in \texttt{src/tools/console.c} and will be built to \texttt{build/tools/console}, which enables us to call the functions above interactively.
-
-  In the script, several calls to \texttt{addDevice()} and \texttt{findDevice()} in a row shows that they can correctly add (only) the valid Ethernet devices on the host and correctly find the added devices.
+  In the script, several calls to \texttt{add-device} and \texttt{find-device} in a row shows that they can correctly add (only) the valid Ethernet devices on the host, get their Ethernet addresses, and correctly find the added devices.
 
   \subsection{Checkpoint 2 (CP2)}
 
   The typescript record is at \texttt{checkpoints/CP2/\{typescript, timing.log\}}.
 
-  A testing tools is implemented in \texttt{src/tools/eth\_test.c}.
-  It receives several devices and their destination address (the MAC address on their other sides) as arguments.
-  It sends $10000$ random raw Ethernet frames through each device (in a new thread for each device), and receives the frames from the other side at the same time.
-  (To prevent losses, it will delay for a short time after each batch of frames.)
-  In the end, it will print a checksum of frames it sends, and another of frames it receives.
+  We implemented the \texttt{eth-test} command in the CLI, which exchanges frames through all configured devices.
+  It sends the first control message using the broadcast address and gets the real destination address through the response.
+  Then the hosts exchange data simultaneously (using threads and the dispatcher), and finally print the sent and received checksum.
 
   In the script, the \texttt{eth\_test} tool above is simultaneously run on each of the 5 hosts in the example network provided in \texttt{vnetUtils}, using all of the 8 devices and 4 links among them.
   After the run, we can see that the sending and receiving checksum of each link matches, which shows the (basic) correctness of our sending and receiving implementation.
+
+  \section{Lab 2: Network-layer}
+
+  \subsection{Writing Task 2 (WT2)}
+
+  \begin{enumerate}
+    \item The ``Target MAC address'' field (bytes 32-37, indexed from 0) in the ARP Reply is the same as the Sender MAC address in the ARP Request.
+    \item There are 6 packets meeting the requirement. We can see this by filtering \texttt{ip.flags.df == 0} and checking the ``Displayed'' status.
+    \item The header length of IPv4 is 20 bytes, while for IPv6 it is 40 bytes.
+  \end{enumerate}
+
+  \subsection{Programming Task 3 (PT3)}
+
+  We designed the class \texttt{IP} for handling basic IPv4 operations.
+
+  Methods for the required functions are:
+  \begin{minted}{cpp}
+int IP::sendPacket(const void *data, int dataLen, const Addr &src,
+                   const Addr &dst, int protocol, SendOptions options = {});
+
+class RecvCallback {
+public:
+  bool promiscuous; // If matches destination IP of other hosts.
+  int protocol;     // The matching IP `protocol` field, -1 for any.
+  virtual int handle(const void *data, int dataLen, const Info &info) = 0;
+};
+void IP::addRecvCallback(RecvCallback *callback);
+  \end{minted}
+
+  It just works like the sending/receiving methods in the Ethernet layer, which simply adds the header and sends it to the layer below, or adds the callback to a list.
+
+  The class \texttt{IP} has registered a callback in \texttt{Ethernet}, to receive Ethernet frames of type IP.
+  It then analyzes the header and distributes the received packets to its own callbacks.
+
+  For forwarding, we also implemented a class \texttt{IPForward} as a user to the \texttt{IP}.
+  It registered a callback in \texttt{IP} and then use \texttt{IP} sending methods to forward the received packets out.
+
+  For routing, we first have the static routing in class \texttt{LpmRouting} (which derivates from the abstract \texttt{IP::Routing}), which implements the Longest Prefix Match in a static table manually added by the user.
+  It then supports the \texttt{IP} class to send packets out. (ARP protocol also participates in this process, see the writing task below).
+
+  It has the interface:
+  \begin{minted}{cpp}
+int LpmRouting::match(const Addr &addr, HopInfo &res,
+                      std::function<void()> waitingCallback) override;
+int LpmRouting::setEntry(const Entry &entry);
+  \end{minted}
+  The \texttt{waitingCallback} is for handling the waiting for ARP replies, as will be described in the tasks below.
+
+  We also have a dynamic routing algorithm, the (non-standard) \texttt{RIP} with similar interfaces, and cooperates with other ``routers'' in the network, which will also be described in the tasks below.
+
+  \subsection{Writing Task 3 (WT3)}
+
+  To send an IP packet, we first need the routing algorithm (or routing table) to find the IP (gateway) address of the next hop, or find out that they are directly connected.
+
+  Then, we get the IP address of the exactly next hop.
+  We can check the ARP table, or send an ARP Request (on misses) to get the MAC address of the next hop.
+
+  However, sending the ARP Request brings the problem of the non-immediate sending of our packets.
+  It is impossible to wait for the ARP Response in our network thread.
+  Therefore, the sending method will return an error.
+  For convenience, we also implement the automatic resend (with callback) option in \texttt{IP::SendOptions} and maybe in the upper layers, by registering a resending callback in the ARP Response receiving procedure.
+  In the user thread, we can also use a mutex to wait for the completion of resending.
+  In this way, this problem will not bring too much complexity to coding.
+
+  We implement the ARP sending method and responder in the class \texttt{ARP}, which may be called by the routing classes to find exactly the MAC address of the next hop.
+  \begin{minted}{cpp}
+int ARP::match(NetworkLayer::Addr netAddr, LinkLayer::Addr &linkAddr,
+               std::function<void()> waitingCallback)
+int ARP::sendRequest(NetworkLayer::Addr target);
+int ARP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
+                                  const Info &info);
+  \end{minted}
+
+  \subsection{Writing Task 4 (WT4)}
+  
+  We use a distance vector algorithm similar to the Routing Information Protocol (RIP). It is implemented in the class \texttt{RIP}.
+
+  For the routing in the same subnet, we assume (in default) that they can reach each other directedly (so we only need the ARP protocol to get its MAC address), so their gateway is set to \texttt{0.0.0.0}, and metrics are set to $0$.
+
+  Then, for each subnet, we maintain an element in the distance vector about the minimum hops to reach that subnet.
+  We may also need the next hop (gateway) to reach that subnet, as well as the expiring time for updating.
+
+  Every 30 seconds (or other custom value), each router will broadcast its distance vector to its neighbors.
+  And when a router receives an RIP ``Response'', it could update its own distance vector (and updates the next hop or other information at the same time):
+  $$d_i \gets \min\{d_i, \mathit{recv}_i + 1\},$$
+  while we use $16$ as infinity, every distance larger than $16$ will be ignored.
+
+  In this way, with sufficient broadcasts, we can find the path of minimal number of hops to each subnet, and then the router in the subnet will directly forward it to the host.
+
+  To handle the changes or failures, every entry will be expired in 180 seconds (by setting its metric to $16$), and then after 120 seconds, it will be deleted from the routing table.
+
+  Also, when a host adds to a network, it will immediately send an RIP Request, to get the information from its neighbors, to set up quickly.
+
+  To optimize the handling of changes, we also use triggered update, which means to broadcast the RIP response as soon as any metric changes in our vector.
+  Also, if we receive the new distance from our best choice before, we will take it even if it is worse than our metric before. These methods can significantly improve performance in changes or failures, especially for the problem of ``counting to infinity'' slowly.
+
+  The RIP protocol runs on the UDP port 520 (with UDP broadcasts), therefore we also implement the class \texttt{UDP} over our \texttt{IP}.
+
+  \subsection{Testing}
+
+  We have tested the implementation in several ways. For example, in the example virtual network, our network stack could correctly forwards ICMP messages from the Linux \texttt{ping} on hosts connected through several ``routers''.
+  
+  We also implemented a simple tool in the CLI like \texttt{nc -u}, just called \texttt{nc-u} in our CLI, to send messages through UDP. They cooperates correctly in the network.
+
+  To work with the Linux \texttt{nc} program, we need to disable the TCP/UDP checksum overload in the system using:
+  \begin{minted}{bash}
+ethtool -K <device> rx off tx off sg off tso off
+  \end{minted}
+  After that, our program can correctly cooperate with the Linux \texttt{nc}.
+  It can also correctly forward the traffic of \texttt{iperf}.
+
+  For testing, we also implemented (part of) the ICMP protocol (sender and automatic responder), and our \texttt{ping} and \texttt{traceroute} command in the CLI.
+  They cooperate correctly with each other, or with the Linux system responders/programs (if we do not disable the kernel network stack).
+
+  \subsection{Checkpoint 3 (CP3)}
+
+  The typescript record is at \texttt{checkpoints/CP3/\{typescript, timing.log\}}.
+
+  The hexdump of the packet is:
+  \begin{minted}{text}
+08:36:33.694000 IP localhost > localhost: ICMP echo request, id 45298, seq 1, length 32
+0x0000:  9af1 db8d 59ba 4247 83b2 2ecc 0800 4500  ....Y.BG......E.
+0x0010:  0034 0000 4000 4001 21ff 0a64 0101 0a64  .4..@.@.!..d...d
+0x0020:  0302 0800 3b3f b0f2 0001 4c61 622d 4e65  ....;?....Lab-Ne
+0x0030:  7453 7461 636b 2050 696e 6720 5465 7374  tStack.Ping.Test
+0x0040:  0a00                                     ..
+  \end{minted}
+
+  The first 14 bytes are the Ethernet header:
+  \begin{itemize}
+    \item \texttt{0x9af1db8d59ba}: Destination Address (6)
+    \item \texttt{0x424783b22ecc} Source Address (6);
+    \item \texttt{0x8000}: EtherType (2), IPv4.
+  \end{itemize}
+  The next 20 bytes are the IPv4 header, each:
+  \begin{itemize}
+    \item \texttt{0x4}: IPv4 version, \texttt{0x5}: IHL;
+    \item \texttt{0x00}: Type of Service.
+    \item \texttt{0x0034}: Total Length.
+    \item \texttt{0x0000}: Identification for fragments.
+    \item \texttt{0b010}: Flags (\texttt{1} for Don't fragment). The other part of \texttt{0x4000} for fragment offset.
+    \item \texttt{0x40}: Time to Live.
+    \item \texttt{0x01}: Protocol (ICMP).
+    \item \texttt{0x21ff}: Header checksum.
+    \item \texttt{0x0a640101}: Source Address: \texttt{10.100.1.1};
+    \item \texttt{0x0a640302}: Destination Address: \texttt{10.100.3.2};
+  \end{itemize}
+  The other 32 bytes are the ICMP Echo (ping) Request message with data.
+  \begin{itemize}
+    \item \texttt{0x8}: Op code, ICMP Echo (ping) Request.
+    \item \texttt{0x0}: Code, 0 for Echo Request.
+    \item \texttt{0x3b3f}: Checksum 
+    \item \texttt{0xb0f2}: Identifier
+    \item \texttt{0x0001}: Sequence number
+    \item Others are the data: \texttt{"Lab-NetStack Ping Test"}...
+  \end{itemize}
+
+  \subsection{Checkpoint 4 (CP4)}
+
+  The typescript record is at \texttt{checkpoints/CP4/\{typescript, timing.log\}}.
+
+  We use the automatic configuring command in our CLI, which configures the IP, netmask as the \texttt{vnetUtils} set to the Linux system, and turn on the RIP dynamic routing as we pass the \texttt{-r} option.
+
+  We can see that, when we run the routing on all the hosts, ns1 can successfully ping to ns4.
+
+  After we kill the process in ns2, n1 cannot reach other hosts anymore. We can see that the routing table finally (after expiring and cleaning time) contains only its own subnet, as ns2 is on the only way from ns1 to other hosts.
+
+  After we run the routing in ns2 again, ns1 can reach ns4 again.
+
+  \subsection{Checkpoint 5 (CP5)}
+
+  The typescript record is at \texttt{checkpoints/CP5/\{typescript, timing.log\}}.
+
+  The output file is at \texttt{checkpoints/CP5/outs/ns*.out}.
+
+  We use the \texttt{traceroute} command in our CLI to measure the distance, we can see that it's exactly one TTL decrease for a hop.
+
+  The distances before disconnecting ns5 are in the left table (the number on row $x$, column $y$ indicates the distance from $x$ to $y$), while the distances after disconnecting are in the right one.
+  
+  \begin{center}
+    \begin{tabular}{c|cccccc}
+      \toprule
+      & ns1 & ns2 & ns3 & ns4 & ns5 & ns6 \\
+      \midrule
+      ns1 & - & $1$ & $2$ & $3$ & $2$ & $3$ \\
+      ns2 & $1$ & - & $1$ & $2$ & $1$ & $2$ \\
+      ns3 & $2$ & $1$ & - & $1$ & $2$ & $1$ \\
+      ns4 & $3$ & $2$ & $1$ & - & $3$ & $2$ \\
+      ns5 & $2$ & $1$ & $2$ & $3$ & - & $1$ \\
+      ns6 & $3$ & $2$ & $1$ & $2$ & $1$ & - \\
+      \bottomrule
+    \end{tabular}
+    \hspace{2em}
+    \begin{tabular}{c|cccccc}
+      \toprule
+      & ns1 & ns2 & ns3 & ns4 & ns6 \\
+      \midrule
+      ns1 & - & $1$ & $2$ & $3$ & $3$ \\
+      ns2 & $1$ & - & $1$ & $2$ & $2$ \\
+      ns3 & $2$ & $1$ & - & $1$ & $1$ \\
+      ns4 & $3$ & $2$ & $1$ & - & $2$ \\
+      ns6 & $3$ & $2$ & $1$ & $2$ & - \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+
+  We can see that the minimum distances do not change even if we disconnect ns5, and our routing implementation can find still the shorted path after disconnection.
+
+  \subsection{Checkpoint 6 (CP6)}
+
+  The typescript record is at \texttt{checkpoints/CP6/\{typescript, timing.log\}}.
+
+  If we use the topology as CP5 (configuration file at \texttt{checkpoints/CP6/vnet.txt} showing the IPs), we could manually config the routing table of ns5 as follows:
+  \begin{minted}{text}
+route-add 10.100.3.1 255.255.255.255 veth2-3 10.100.2.2
+route-add 10.100.3.0 255.255.255.0 veth2-5 10.100.4.2
+route-add 10.100.0.0 255.255.0.0 veth2-3 10.100.2.2
+route-add 10.100.1.0 255.255.255.0 veth2-1 10.100.1.1
+  \end{minted}
+
+  Then we run other hosts as routers automatic, and try some \texttt{traceroute}, we will find:
+\begin{minted}{text}
+ns2 - 10.100.3.1 (ns3)
+ns2 - 10.100.4.2 (ns5) - 10.100.5.2 (ns6) - 10.100.6.1 (ns3) - 10.100.3.2 (ns4)
+ns2 - 10.100.2.2 (ns3) - 10.100.6.2 (ns6) - 10.100.4.2 (ns5)
+ns2 - 10.100.2.2 (ns3) - 10.100.5.2 (ns6)
+ns2 - 10.100.2.2 (ns3) - 10.100.6.2 (ns6)
+\end{minted}
+  It just behaves like we apply the "longest prefix matching" rule on the destination.
 
 \end{document}
