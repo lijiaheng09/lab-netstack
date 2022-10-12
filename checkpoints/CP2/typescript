@@ -1,49 +1,67 @@
-Script started on 2022-09-26 04:24:18-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="141" LINES="34"]
+Script started on 2022-10-12 06:22:11-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="113" LINES="24"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP2[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP2[00m$ ./test.sh
 +++ pwd
 ++ C=/home/lijiaheng/lab-netstack/checkpoints/CP2
 ++ cd ../../utils/vnetUtils/examples/
 ++ sudo ./makeVNet
 ++ cd ../helper/
-+++ sudo ./execNS ns0 ifconfig
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth0-3
-++ veth0_3=7a:dc:34:98:f4:43
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth1-2
-+++ sudo ./execNS ns1 ifconfig
-++ veth1_2=ea:e6:b2:18:3f:6a
-+++ sudo ./execNS ns2 ifconfig
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth2-1
-++ veth2_1=b6:a1:51:8f:46:e8
-+++ sudo ./execNS ns2 ifconfig
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth2-3
-++ veth2_3=d6:bb:1c:36:1d:90
-+++ sudo ./execNS ns3 ifconfig
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth3-0
-++ veth3_0=be:62:ca:1c:3e:38
-+++ sudo ./execNS ns3 ifconfig
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth3-2
-++ veth3_2=ce:0a:b3:c0:74:3a
-+++ sudo ./execNS ns3 ifconfig
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth3-4
-++ veth3_4=5a:e9:50:ee:05:5f
-+++ sudo ./execNS ns4 ifconfig
-+++ /home/lijiaheng/lab-netstack/checkpoints/CP2/getEther.py veth4-3
-++ veth4_3=7e:2d:bf:74:1a:fc
-++ sudo ./execNS ns3 ../../../build/tools/eth_test veth3-0 7a:dc:34:98:f4:43 veth3-2 d6:bb:1c:36:1d:90 veth3-4 7e:2d:bf:74:1a:fc
+++ CMD='../../../build/tools/cli -c eth-test'
+++ sudo ./execNS ns4 ../../../build/tools/cli -c eth-test veth4-3
+++ sudo ./execNS ns3 ../../../build/tools/cli -c eth-test veth3-0 veth3-2 veth3-4
+++ sudo ./execNS ns0 ../../../build/tools/cli -c eth-test veth0-3
+++ sudo ./execNS ns2 ../../../build/tools/cli -c eth-test veth2-1 veth2-3
+++ sudo ./execNS ns1 ../../../build/tools/cli -c eth-test veth1-2
+device veth3-0 received HELO
+device veth3-0: sent 0/10000
+device veth3-4 received HELO
+device veth3-4: sent 0/10000
+device veth3-2 waiting
+device veth3-2 received RESP
+device veth3-2: sent 0/10000
+device veth3-2 received HELO
+device veth3-4: sent 1000/10000
+device veth3-0: sent 1000/10000
+device veth3-2: sent 1000/10000
+device veth3-4: sent 2000/10000
+device veth3-0: sent 2000/10000
+device veth3-2: sent 2000/10000
+device veth3-4: sent 3000/10000
+device veth3-0: sent 3000/10000
+device veth3-2: sent 3000/10000
+device veth3-4: sent 4000/10000
+device veth3-0: sent 4000/10000
+device veth3-2: sent 4000/10000
+device veth3-4: sent 5000/10000
+device veth3-0: sent 5000/10000
+device veth3-2: sent 5000/10000
+device veth3-4: sent 6000/10000
+device veth3-0: sent 6000/10000
+device veth3-2: sent 6000/10000
+device veth3-4: sent 7000/10000
+device veth3-0: sent 7000/10000
+device veth3-2: sent 7000/10000
+device veth3-4: sent 8000/10000
+device veth3-0: sent 8000/10000
+device veth3-2: sent 8000/10000
+device veth3-4: sent 9000/10000
+device veth3-0: sent 9000/10000
+device veth3-2: sent 9000/10000
+device veth3-0 received STOP
+device veth3-4 received STOP
+Device veth2-1: sent (10000) 314EBF74D50C5EB8, recv (10000) 8C2AE1A70DD4E7E2
+Device veth1-2: sent (10000) 8C2AE1A70DD4E7E2, recv (10000) 314EBF74D50C5EB8
+device veth3-2 received STOP
+Device veth4-3: sent (10000) E353DBFB31D7BF58, recv (10000) 34FC55451E9E1300
+Device veth2-3: sent (10000) 390B75924AF1589A, recv (10000) 8A94EAFB762FFE2A
+Device veth3-0: sent (10000) 29225710578C896F, recv (10000) 63FA3964D6A1A613
+Device veth3-2: sent (10000) 8A94EAFB762FFE2A, recv (10000) 390B75924AF1589A
+Device veth3-4: sent (10000) 34FC55451E9E1300, recv (10000) E353DBFB31D7BF58
+Device veth0-3: sent (10000) 63FA3964D6A1A613, recv (10000) 29225710578C896F
+Loop breaked
 ++ wait
-++ sudo ./execNS ns1 ../../../build/tools/eth_test veth1-2 b6:a1:51:8f:46:e8
-++ sudo ./execNS ns2 ../../../build/tools/eth_test veth2-1 ea:e6:b2:18:3f:6a veth2-3 ce:0a:b3:c0:74:3a
-++ sudo ./execNS ns4 ../../../build/tools/eth_test veth4-3 5a:e9:50:ee:05:5f
-++ sudo ./execNS ns0 ../../../build/tools/eth_test veth0-3 be:62:ca:1c:3e:38
-device 0: veth1-2, sent F3FBCE1081632E7C, recv B88C78F00EA0C996
-device 0: veth0-3, sent 2B0A1528F0CC0B21, recv 73C2F22C84E2335F
-device 0: veth2-1, sent B88C78F00EA0C996, recv F3FBCE1081632E7C
-device 1: veth2-3, sent 6158F4FB43E8DF8C, recv 24353E0F843DF55E
-device 0: veth3-0, sent 73C2F22C84E2335F, recv 2B0A1528F0CC0B21
-device 1: veth3-2, sent 24353E0F843DF55E, recv 6158F4FB43E8DF8C
-device 2: veth3-4, sent 4E9B159F07BD961C, recv 99BF7DDE54FAAC16
-device 0: veth4-3, sent 99BF7DDE54FAAC16, recv 4E9B159F07BD961C
 ++ cd ../examples/
 ++ sudo ./removeVNet
 ++ exit
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP2[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP2[00m$ exit
 
-Script done on 2022-09-26 04:24:34-07:00 [COMMAND_EXIT_CODE="0"]
+Script done on 2022-10-12 06:22:50-07:00 [COMMAND_EXIT_CODE="0"]

@@ -1,73 +1,73 @@
-Script started on 2022-09-26 04:25:51-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="141" LINES="34"]
+Script started on 2022-10-12 06:21:34-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="113" LINES="24"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP1[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP1[00m$ ./test.sh
 +++ pwd
 ++ C=/home/lijiaheng/lab-netstack/checkpoints/CP1
 ++ cd ../../utils/vnetUtils/examples/
 ++ sudo ./makeVNet
 ++ cd ../helper/
 ++ set -x
-++ sudo ./execNS ns3 ../../../build/tools/console /home/lijiaheng/lab-netstack/checkpoints/CP1/test.txt
+++ sudo ./execNS ns3 ../../../build/tools/cli -fi /home/lijiaheng/lab-netstack/checkpoints/CP1/test.txt
 > !ifconfig
 veth3-0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         inet 10.100.4.2  netmask 255.255.255.0  broadcast 0.0.0.0
-        inet6 fe80::8095:c7ff:fe49:ba2  prefixlen 64  scopeid 0x20<link>
-        ether 82:95:c7:49:0b:a2  txqueuelen 1000  (Ethernet)
-        RX packets 27  bytes 3422 (3.4 KB)
+        inet6 fe80::24b9:6aff:fe8e:7ac7  prefixlen 64  scopeid 0x20<link>
+        ether 26:b9:6a:8e:7a:c7  txqueuelen 1000  (Ethernet)
+        RX packets 17  bytes 1849 (1.8 KB)
         RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 6  bytes 516 (516.0 B)
+        TX packets 3  bytes 266 (266.0 B)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
 veth3-2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         inet 10.100.2.2  netmask 255.255.255.0  broadcast 0.0.0.0
-        inet6 fe80::4cc5:77ff:fea5:30d4  prefixlen 64  scopeid 0x20<link>
-        ether 4e:c5:77:a5:30:d4  txqueuelen 1000  (Ethernet)
+        inet6 fe80::3086:ecff:fea1:2897  prefixlen 64  scopeid 0x20<link>
+        ether 32:86:ec:a1:28:97  txqueuelen 1000  (Ethernet)
         RX packets 6  bytes 516 (516.0 B)
         RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 6  bytes 516 (516.0 B)
+        TX packets 5  bytes 426 (426.0 B)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
 veth3-4: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         inet 10.100.3.1  netmask 255.255.255.0  broadcast 0.0.0.0
-        inet6 fe80::306e:a2ff:fe79:33bf  prefixlen 64  scopeid 0x20<link>
-        ether 32:6e:a2:79:33:bf  txqueuelen 1000  (Ethernet)
+        inet6 fe80::c452:2cff:fe95:8bec  prefixlen 64  scopeid 0x20<link>
+        ether c6:52:2c:95:8b:ec  txqueuelen 1000  (Ethernet)
         RX packets 6  bytes 516 (516.0 B)
         RX errors 0  dropped 0  overruns 0  frame 0
         TX packets 6  bytes 516 (516.0 B)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
-> findAllDevs
-device veth3-2: (null)
-    ether 4E:C5:77:A5:30:D4
-device veth3-4: (null)
-    ether 32:6E:A2:79:33:BF
-device veth3-0: (null)
-    ether 82:95:C7:49:0B:A2
-device any: Pseudo-device that captures on all interfaces
-device nflog: Linux netfilter log (NFLOG) interface
-device nfqueue: Linux netfilter queue (NFQUEUE) interface
-device lo: (null)
-> findDevice veth3-0
-device not found
-> addDevice veth3-0
-device added: 0
-> findDevice veth3-0
-device found: 0
-> addDevice veth-err
-error
-> addDevice veth3-2
-device added: 1
-> addDevice veth3-1
-error
-> findDevice veth3-0
-device found: 0
-> findDevice veth3-2
-device found: 1
-> findDevice veth3-4
-device not found
-> addDevice veth3-4
-device added: 2
-> exit
+> find-device veth3-0
+Device not found: veth3-0
+> add-device veth3-0
+Device added: veth3-0
+    ether 26:b9:6a:8e:7a:c7
+> find-device veth3-0
+Device found: veth3-0
+    ether 26:b9:6a:8e:7a:c7
+> add-device veth-err
+No such Ethernet device: veth-err
+Error adding device: veth-err
+> add-device veth3-2
+Device added: veth3-2
+    ether 32:86:ec:a1:28:97
+> add-device veth3-1
+No such Ethernet device: veth3-1
+Error adding device: veth3-1
+> find-device veth3-0
+Device found: veth3-0
+    ether 26:b9:6a:8e:7a:c7
+> find-device veth3-2
+Device found: veth3-2
+    ether 32:86:ec:a1:28:97
+> find-device veth3-4
+Device not found: veth3-4
+> add-device veth3-4
+Device added: veth3-4
+    ether c6:52:2c:95:8b:ec
+> 
+Loop breaked
 ++ cd ../examples/
 ++ sudo ./removeVNet
 ++ exit
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP1[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP1[00m$ exit
 
-Script done on 2022-09-26 04:26:20-07:00 [COMMAND_EXIT_CODE="0"]
+Script done on 2022-10-12 06:21:55-07:00 [COMMAND_EXIT_CODE="0"]
