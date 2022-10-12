@@ -51,6 +51,21 @@ public:
     time_t expireTime;
   };
 
+  struct Entry {
+    Addr addr;                 // The address to be matched.
+    Addr mask;                 // The prefix mask (required to be a prefix).
+    LinkLayer::Device *device; // The port to the next hop.
+    LinkLayer::Addr dstMAC;    // The destination address of the next hop.
+  };
+
+  /**
+   * @brief Set an routing entry
+   *
+   * @param entry The entry to be set.
+   * @return 0 on success, negative on error.
+   */
+  int setEntry(const TabEntry &entry);
+
   int setup();
 
   HopInfo match(const Addr &addr) override;
@@ -65,7 +80,7 @@ public:
     }
   };
 
-  using Table = std::unordered_map<NetworkLayer::Addr, TabEntry, HashAddr>;
+  using Table = Vector<TabEntry>;
 
   const Table &getTable();
 

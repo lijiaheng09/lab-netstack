@@ -25,6 +25,8 @@ public:
    */
   int setEntry(const Entry &entry);
 
+  const Vector<Entry> &getTable();
+
 private:
   Vector<Entry> table;
 };

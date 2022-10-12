@@ -75,12 +75,31 @@ public:
   }
 };
 
+class CmdRouteInfo : public Command {
+public:
+  CmdRouteInfo() : Command("route-info") {}
+
+  int main(int argc, char **argv) override {
+    INVOKE({
+      const auto &table = staticRouting.getTable();
+      printf("IP | Netmask | Device | Dest MAC\n");
+      time_t curTime = time(nullptr);
+      for (auto &&e : table) {
+        printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
+                                  " | %s | " ETHERNET_ADDR_FMT_STRING "\n",
+               IP_ADDR_FMT_ARGS(e.addr), IP_ADDR_FMT_ARGS(e.mask),
+               e.device->name, ETHERNET_ADDR_FMT_ARGS(e.dstMAC));
+      }
+    })
+    return 0;
+  }
+};
+
 class CmdRouteRipInfo : public Command {
 public:
   CmdRouteRipInfo() : Command("route-rip-info") {}
 
   int main(int argc, char **argv) override {
-    IP::Routing::HopInfo res;
     INVOKE({
       const auto &table = ripRouting.getTable();
       printf("IP | Device | Dest MAC | Metric | Exipre\n");

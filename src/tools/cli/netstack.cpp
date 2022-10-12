@@ -49,6 +49,7 @@ int initNetStack() {
     return rc;
   }
 
+  ip.setRouting(&staticRouting);
   netBase.addLoopCallback(&loopDispatcher);
 
   return startLoop();

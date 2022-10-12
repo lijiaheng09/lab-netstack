@@ -37,3 +37,7 @@ int LpmRouting::setEntry(const Entry &entry) {
   table.push_back(entry);
   return 0;
 }
+
+const Vector<LpmRouting::Entry> &LpmRouting::getTable() {
+  return table;
+}

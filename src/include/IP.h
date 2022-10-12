@@ -139,6 +139,13 @@ public:
   void setRouting(Routing *routing);
 
   /**
+   * @brief Get the routing policy.
+   *
+   * @return routing Pointer to the `IP::Routing` object.
+   */
+  Routing *getRouting();
+
+  /**
    * @brief Send a complete IP packet (leaving the checksum for
    * recalculation).
    *

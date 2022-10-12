@@ -39,6 +39,7 @@ std::vector<Command *> allCommands = {
   new CmdIPAddrAdd(),
   new CmdRouteAdd(),
   new CmdRouteRip(),
+  new CmdRouteInfo(),
   new CmdRouteRipInfo(),
 
   new CmdIPForward(),

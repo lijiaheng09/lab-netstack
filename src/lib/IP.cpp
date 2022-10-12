@@ -54,6 +54,10 @@ void IP::setRouting(Routing *routing) {
   this->routing = routing;
 }
 
+IP::Routing *IP::getRouting() {
+  return routing;
+}
+
 int IP::sendPacketWithHeader(void *packet, int packetLen) {
   Header &header = *(Header *)packet;
   if (packetLen < sizeof(Header)) {
