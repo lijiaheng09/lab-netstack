@@ -57,7 +57,8 @@ int ICMP::sendEchoOrReply(const IP::Addr &src, const IP::Addr &dst, int type,
     return -1;
   }
   if ((identifier >> 16) != 0 || (seqNumber >> 16) != 0) {
-    ERRLOG("Invalid ICMP identifier %d, sequence number %d\n", identifier, seqNumber);
+    ERRLOG("Invalid ICMP identifier %d, sequence number %d\n", identifier,
+           seqNumber);
     return -1;
   }
   int msgLen = sizeof(Header) + dataLen;
@@ -81,7 +82,8 @@ int ICMP::sendEchoOrReply(const IP::Addr &src, const IP::Addr &dst, int type,
   assert(calcInternetChecksum16(msg, msgLen) == 0);
 #endif
 
-  int rc = ip.sendPacket(msg, msgLen, src, dst, PROTOCOL_ID, timeToLive);
+  int rc = ip.sendPacket(msg, msgLen, src, dst, PROTOCOL_ID,
+                         {timeToLive : timeToLive});
   free(msg);
   return rc;
 }

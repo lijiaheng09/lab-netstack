@@ -30,12 +30,25 @@ int RIP::setup() {
   return 0;
 }
 
-IP::Routing::HopInfo RIP::match(const Addr &addr) {
-  if (table.count(addr)) {
-    auto &&e = table[addr];
-    return HopInfo{device : e.device, dstMAC : e.dstMAC};
+int RIP::setEntry(const Addr &addr, const Addr &mask, const TabEntry &entry) {
+  if (entry.metric > METRIC_INF) {
+    ERRLOG("Too large metric: %d\n", entry.metric);
+    return 1;
   }
-  return HopInfo{device : nullptr, dstMAC : {}};
+  int rc = matchTable.setEntry({
+    addr: addr,
+    mask: mask,
+    device: entry.device,
+    dstMAC: entry.dstMAC
+  });
+  if (rc != 0)
+    return rc;
+  table[{addr, mask}] = entry;
+  return 0;
+}
+
+int RIP::match(const Addr &addr, HopInfo &res) {
+  return matchTable.match(addr, res);
 }
 
 int RIP::sendRequest() {
@@ -63,13 +76,14 @@ int RIP::sendUpdate() {
   }
 
   const auto &netAddrs = network.getAddrs();
-  for (auto &&e : netAddrs)
-    table[e.addr] = TabEntry{
+  for (auto &&e : netAddrs) {
+    table[{e.addr, IP::Addr::MASK_HOST}] = TabEntry{
       device : e.device,
       dstMAC : e.device->addr,
       metric : 0,
-      expireTime : curTime + updateCycle * 10
+      expireTime : 0
     };
+  }
 
   int dataLen = sizeof(Header) + sizeof(DataEntry) * (int)table.size();
   void *buf = malloc(dataLen);
@@ -85,8 +99,8 @@ int RIP::sendUpdate() {
     *p++ = DataEntry{
       addressFamily : htons(ADDRESS_FAMILY),
       zero0 : 0,
-      address : e.first,
-      zero1 : 0,
+      address : e.first.addr,
+      mask : e.first.mask,
       zero2 : 0,
       metric : htonl(e.second.metric)
     };
@@ -142,26 +156,33 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
       continue;
 
     bool updateEnt = false;
-    if (!rip.table.count(e.address)) {
+    if (!rip.table.count({e.address, e.mask})) {
       updateEnt = true;
       realUpdated = true;
     } else {
-      auto &&r = rip.table[e.address];
+      auto &&r = rip.table[{e.address, e.mask}];
       if ((r.metric != 0 && r.device == info.linkDevice) ||
-          metric <= r.metric) {
+          metric < r.metric) {
         updateEnt = true;
         if (metric != r.metric)
           realUpdated = true;
       }
     }
 
-    if (updateEnt)
-      rip.table[e.address] = TabEntry{
+    if (updateEnt) {
+      rip.table[{e.address, e.mask}] = TabEntry{
         device : info.linkDevice,
         dstMAC : info.linkHeader->src,
         metric : metric,
         expireTime : curTime + rip.expireCycle
       };
+      rip.matchTable.setEntry({
+        addr: e.address,
+        mask: e.mask,
+        device : info.linkDevice,
+        dstMAC : info.linkHeader->src,
+      });
+    }
   }
 
   // Triggered updates
@@ -177,12 +198,16 @@ int RIP::LoopHandler::handle() {
   time_t curTime = time(nullptr);
   for (auto it = rip.table.begin(); it != rip.table.end();) {
     auto &e = *it;
-    if (curTime > e.second.expireTime)
-      e.second.metric = METRIC_INF;
-    if (curTime - e.second.expireTime > rip.cleanCycle)
-      it = rip.table.erase(it);
-    else
-      it++;
+    if (e.second.expireTime) {
+      if (curTime > e.second.expireTime)
+        e.second.metric = METRIC_INF;
+      if (curTime - e.second.expireTime > rip.cleanCycle) {
+        rip.matchTable.delEntry(it->first.addr, it->first.mask);
+        it = rip.table.erase(it);
+        continue;
+      }
+    }
+    it++;
   }
   if (curTime >= rip.updateTime) {
     rip.sendUpdate();

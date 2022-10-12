@@ -8,7 +8,7 @@
  */
 class LpmRouting : public IP::Routing {
 public:
-  HopInfo match(const Addr &addr) override;
+  int match(const Addr &addr, HopInfo &res) override;
 
   struct Entry {
     Addr addr;                 // The address to be matched.
@@ -24,6 +24,8 @@ public:
    * @return 0 on success, negative on error.
    */
   int setEntry(const Entry &entry);
+
+  int delEntry(Addr addr, Addr mask);
 
   const Vector<Entry> &getTable();
 

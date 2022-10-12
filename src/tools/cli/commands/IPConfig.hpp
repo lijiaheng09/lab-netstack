@@ -33,7 +33,7 @@ public:
 
   int main(int argc, char **argv) override {
     LpmRouting::Entry entry;
-    if (argc != 5 ||
+    if (argc < 5 ||
         sscanf(argv[1], IP_ADDR_FMT_STRING, IP_ADDR_FMT_ARGS(&entry.addr)) !=
             IP_ADDR_FMT_NUM ||
         sscanf(argv[2], IP_ADDR_FMT_STRING, IP_ADDR_FMT_ARGS(&entry.mask)) !=
@@ -41,7 +41,7 @@ public:
         sscanf(argv[4], ETHERNET_ADDR_FMT_STRING,
                ETHERNET_ADDR_FMT_ARGS(&entry.dstMAC)) !=
             ETHERNET_ADDR_FMT_NUM) {
-      fprintf(stderr, "usage: %s <ip> <mask> <device> <dstMAC>\n", argv[0]);
+      fprintf(stderr, "usage: %s <ip> <mask> <device> <dstMAC> [<metric>] [<expire-time>]\n", argv[0]);
       return 1;
     }
 
@@ -50,7 +50,25 @@ public:
       return 1;
 
     int rc;
-    INVOKE({ rc = staticRouting.setEntry(entry); })
+    if (ip.getRouting() == &staticRouting) {
+      INVOKE({ rc = staticRouting.setEntry(entry); })
+    } else if (ip.getRouting() == &ripRouting) {
+      RIP::TabEntry rentry {
+        device: entry.device,
+        dstMAC: entry.dstMAC,
+        metric: 1,
+        expireTime: 0
+      };
+      if (argc >= 6 && sscanf(argv[5], "%d", &rentry.metric) != 1) {
+        fprintf(stderr, "Invalid metric.\n");
+        return 1;
+      }
+      if (argc >= 7 && sscanf(argv[6], "%ld", &rentry.expireTime) != 1) {
+        fprintf(stderr, "Invalid expire time.\n");
+        return 1;
+      }
+      INVOKE({ rc = ripRouting.setEntry(entry.addr, entry.mask, rentry); })
+    }
     if (rc != 0) {
       fprintf(stderr, "Error setting routing entry.");
       return 1;
@@ -102,14 +120,15 @@ public:
   int main(int argc, char **argv) override {
     INVOKE({
       const auto &table = ripRouting.getTable();
-      printf("IP | Device | Dest MAC | Metric | Exipre\n");
+      printf("IP | Mask | Device | Dest MAC | Metric | Exipre\n");
       time_t curTime = time(nullptr);
       for (auto &&e : table) {
-        printf(IP_ADDR_FMT_STRING " | %s | " ETHERNET_ADDR_FMT_STRING
+        printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
+                                  " | %s | " ETHERNET_ADDR_FMT_STRING
                                   " | %d | %+ld\n",
-               IP_ADDR_FMT_ARGS(e.first), e.second.device->name,
-               ETHERNET_ADDR_FMT_ARGS(e.second.dstMAC), e.second.metric,
-               e.second.expireTime - curTime);
+               IP_ADDR_FMT_ARGS(e.first.addr), IP_ADDR_FMT_ARGS(e.first.mask),
+               e.second.device->name, ETHERNET_ADDR_FMT_ARGS(e.second.dstMAC),
+               e.second.metric, e.second.expireTime - curTime);
       }
     })
     return 0;

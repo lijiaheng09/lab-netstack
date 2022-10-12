@@ -42,6 +42,7 @@ public:
    * @param dstAddr IP address of the destination.
    * @param dstPort Destination port.
    * @return 0 on success, negative on error.
+   * Including: E_WAIT_FOR_TRYAGAIN.
    */
   int sendSegment(const void *data, int dataLen,
                   const NetworkLayer::Addr &srcAddr, int srcPort,

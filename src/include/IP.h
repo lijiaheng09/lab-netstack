@@ -2,7 +2,9 @@
 #define NETSTACK_IP_H
 
 #include <cinttypes>
+#include <functional>
 
+#include "Errors.h"
 #include "Ethernet.h"
 
 #define IP_ADDR_FMT_STRING "%hhu.%hhu.%hhu.%hhu"
@@ -43,6 +45,7 @@ public:
     }
 
     static const Addr BROADCAST;
+    static const Addr MASK_HOST;
   };
 
   struct Header {
@@ -125,10 +128,12 @@ public:
      * @brief Match for the next hop port for an IP packet.
      *
      * @param addr The destination IP address of the packet.
-     * @return The port and destination MAC address for the next hop.
-     * If no valid routing is found, set `device` to `nullptr`.
+     * @param res To be filled with the port and destination MAC address for the
+     * next hop.
+     * @return 0 on success, negative on error.
+     * Including: E_WAIT_FOR_TRYAGAIN.
      */
-    virtual HopInfo match(const Addr &addr) = 0;
+    virtual int match(const Addr &addr, HopInfo &res) = 0;
   };
 
   /**
@@ -145,6 +150,13 @@ public:
    */
   Routing *getRouting();
 
+  static constexpr int E_WAIT_ROUTING = -3001;
+
+  struct SendOptions {
+    int timeToLive;
+    std::function<void()> waitingCallback;
+  };
+
   /**
    * @brief Send a complete IP packet (leaving the checksum for
    * recalculation).
@@ -153,8 +165,10 @@ public:
    * @param len Length of the packet.
    *
    * @return 0 on success, negative on error.
+   * Including: E_WAIT_FOR_TRYAGAIN.
    */
-  int sendPacketWithHeader(void *packet, int packetLen);
+  int sendPacketWithHeader(void *packet, int packetLen,
+                           SendOptions options = {});
 
   /**
    * @brief Send an IP packet.
@@ -167,9 +181,11 @@ public:
    * @param timeToLive The `time to live` field of the packet.
    *
    * @return 0 on success, negative on error.
+   * Including: E_WAIT_FOR_TRYAGAIN.
    */
   int sendPacket(const void *data, int dataLen, const Addr &src,
-                 const Addr &dst, int protocol, int timeToLive = 64);
+                 const Addr &dst, int protocol,
+                 SendOptions options = {timeToLive : 64});
 
   class RecvCallback {
   public:

@@ -82,10 +82,14 @@ int main(int argc, char **argv) {
     return rc;
   }
 
-  if (argc > 2 && strcmp(argv[1], "-c") == 0 || strcmp(argv[1], "-ci") == 0) {
+  if (argc > 2 && argv[1][0] == '-' && argv[1][1] == 'c') {
     std::vector<char *> args(argv + 2, argv + argc);
     int rc = executeCommand(args);
-    if (strcmp(argv[1], "-ci") != 0) {
+    if (rc == 0 && argv[1][2] == 'w') {
+      netThread->join();
+      return rc;
+    }
+    if (argv[1][2] != 'i') {
       stopLoop();
       return rc;
     }
@@ -93,14 +97,14 @@ int main(int argc, char **argv) {
 
   FILE *fp = nullptr;
   bool interactive = true;
-  if (argc > 2 && strcmp(argv[1], "-f") == 0 || strcmp(argv[1], "-fi") == 0) {
+  if (argc > 2 && argv[1][0] == '-' && argv[1][1] == 'f') {
     fp = fopen(argv[2], "r");
     if (!fp) {
       fprintf(stderr, "open file %s error: %s\n", argv[2], strerror(errno));
       stopLoop();
       return 1;
     }
-    if (strcmp(argv[1], "-fi") != 0)
+    if (argv[1][2] != 'i')
       interactive = false;
   }
 

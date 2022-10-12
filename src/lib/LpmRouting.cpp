@@ -2,15 +2,16 @@
 
 #include "LpmRouting.h"
 
-LpmRouting::HopInfo LpmRouting::match(const Addr &addr) {
+int LpmRouting::match(const Addr &addr, HopInfo &res) {
+  int rc = -1; 
   Addr curMask = {0};
-  HopInfo result{device : nullptr, dstMAC : {}};
   for (auto &&e : table)
     if ((addr & e.mask) == e.addr && (e.mask & curMask) == curMask) {
-      result = {device : e.device, dstMAC : e.dstMAC};
+      res = {device : e.device, dstMAC : e.dstMAC};
       curMask = e.mask;
+      rc = 0;
     }
-  return result;
+  return rc;
 }
 
 int LpmRouting::setEntry(const Entry &entry) {
@@ -36,6 +37,16 @@ int LpmRouting::setEntry(const Entry &entry) {
 
   table.push_back(entry);
   return 0;
+}
+
+int LpmRouting::delEntry(Addr addr, Addr mask) {
+  for (auto it = table.begin(); it != table.end(); it++) {
+    if (it->addr == addr && it->mask == mask) {
+      table.erase(it);
+      return 0;
+    }
+  }
+  return 1;
 }
 
 const Vector<LpmRouting::Entry> &LpmRouting::getTable() {

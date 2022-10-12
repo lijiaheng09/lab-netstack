@@ -14,6 +14,7 @@
 
 constexpr int IP::PROTOCOL_ID = ETHERTYPE_IP;
 constexpr IP::Addr IP::Addr::BROADCAST{255, 255, 255, 255};
+constexpr IP::Addr IP::Addr::MASK_HOST{255, 255, 255, 255};
 
 IP::IP(LinkLayer &linkLayer_)
     : linkLayer(linkLayer_), routing(nullptr), linkLayerHandler(*this),
@@ -58,7 +59,7 @@ IP::Routing *IP::getRouting() {
   return routing;
 }
 
-int IP::sendPacketWithHeader(void *packet, int packetLen) {
+int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
   Header &header = *(Header *)packet;
   if (packetLen < sizeof(Header)) {
     ERRLOG("Truncated IP header: %d/%d\n", packetLen, (int)sizeof(Header));
@@ -94,8 +95,9 @@ int IP::sendPacketWithHeader(void *packet, int packetLen) {
     ERRLOG("No IP routing policy.\n");
     return -1;
   }
-  auto hop = routing->match(header.dst);
-  if (!hop.device) {
+  Routing::HopInfo hop;
+  rc = routing->match(header.dst, hop);
+  if (rc < 0) {
     ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
            IP_ADDR_FMT_ARGS(header.dst));
     return -1;
@@ -104,7 +106,7 @@ int IP::sendPacketWithHeader(void *packet, int packetLen) {
 }
 
 int IP::sendPacket(const void *data, int dataLen, const Addr &src,
-                   const Addr &dst, int protocol, int timeToLive) {
+                   const Addr &dst, int protocol, SendOptions options) {
   int packetLen = sizeof(Header) + dataLen;
 
   if (dataLen < 0 || (packetLen >> 16) != 0) {
@@ -115,8 +117,8 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
     ERRLOG("Invalid IP protocol field: %X\n", protocol);
     return -1;
   }
-  if ((timeToLive >> 8) != 0) {
-    ERRLOG("Invalid IP TTL field: %X\n", timeToLive);
+  if ((options.timeToLive >> 8) != 0) {
+    ERRLOG("Invalid IP TTL field: %X\n", options.timeToLive);
     return -1;
   }
 
@@ -133,14 +135,14 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
     totalLength : htons(packetLen),
     identification : 0,
     flagsAndFragmentOffset : htons(0b010 << 13 | 0),
-    timeToLive : (uint8_t)timeToLive,
+    timeToLive : (uint8_t)options.timeToLive,
     protocol : (uint8_t)protocol,
     headerChecksum : 0,
     src : src,
     dst : dst
   };
   memcpy(&header + 1, data, dataLen);
-  int rc = sendPacketWithHeader(packet, packetLen);
+  int rc = sendPacketWithHeader(packet, packetLen, options);
   free(packet);
   return rc;
 }

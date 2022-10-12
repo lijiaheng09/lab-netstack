@@ -6,6 +6,8 @@
 #include "NetBase.h"
 #include "UDP.h"
 
+#include "LpmRouting.h"
+
 /**
  * @brief (Modified) Routing Information Protocol based on UDP.
  */
@@ -39,7 +41,7 @@ public:
     uint16_t addressFamily;
     uint16_t zero0;
     NetworkLayer::Addr address;
-    uint32_t zero1;
+    NetworkLayer::Addr mask;
     uint32_t zero2;
     uint32_t metric;
   };
@@ -51,41 +53,37 @@ public:
     time_t expireTime;
   };
 
-  struct Entry {
-    Addr addr;                 // The address to be matched.
-    Addr mask;                 // The prefix mask (required to be a prefix).
-    LinkLayer::Device *device; // The port to the next hop.
-    LinkLayer::Addr dstMAC;    // The destination address of the next hop.
-  };
-
-  /**
-   * @brief Set an routing entry
-   *
-   * @param entry The entry to be set.
-   * @return 0 on success, negative on error.
-   */
-  int setEntry(const TabEntry &entry);
-
   int setup();
 
-  HopInfo match(const Addr &addr) override;
+  int setEntry(const Addr &addr, const Addr &mask, const TabEntry &entry);
+
+  int match(const Addr &addr, HopInfo &res) override;
 
   int sendRequest();
   int sendUpdate();
 
-  class HashAddr {
-  public:
-    size_t operator()(const NetworkLayer::Addr &a) const {
-      return a.num;
+  struct Key {
+    NetworkLayer::Addr addr;
+    NetworkLayer::Addr mask;
+    friend bool operator ==(const Key &a, const Key &b) {
+      return a.addr == b.addr && a.mask == b.mask;
     }
   };
 
-  using Table = Vector<TabEntry>;
+  class HashAddr {
+  public:
+    size_t operator()(const Key &a) const {
+      return (uint64_t)a.mask.num << 32 | a.addr.num;
+    }
+  };
+
+  using Table = std::unordered_map<Key, TabEntry, HashAddr>;
 
   const Table &getTable();
 
 private:
   Table table;
+  LpmRouting matchTable;
 
   time_t updateTime;
 
