@@ -133,7 +133,7 @@ public:
      * @return 0 on success, negative on error.
      * Including: E_WAIT_FOR_TRYAGAIN.
      */
-    virtual int match(const Addr &addr, HopInfo &res) = 0;
+    virtual int match(const Addr &addr, HopInfo &res, std::function<void ()> waitingCallback = 0) = 0;
   };
 
   /**

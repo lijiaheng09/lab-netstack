@@ -38,10 +38,12 @@ public:
             IP_ADDR_FMT_NUM ||
         sscanf(argv[2], IP_ADDR_FMT_STRING, IP_ADDR_FMT_ARGS(&entry.mask)) !=
             IP_ADDR_FMT_NUM ||
-        sscanf(argv[4], ETHERNET_ADDR_FMT_STRING,
-               ETHERNET_ADDR_FMT_ARGS(&entry.dstMAC)) !=
-            ETHERNET_ADDR_FMT_NUM) {
-      fprintf(stderr, "usage: %s <ip> <mask> <device> <dstMAC> [<metric>] [<expire-time>]\n", argv[0]);
+        sscanf(argv[4], IP_ADDR_FMT_STRING, IP_ADDR_FMT_ARGS(&entry.gateway)) !=
+            IP_ADDR_FMT_NUM) {
+      fprintf(stderr,
+              "usage: %s <ip> <mask> <device> <gateway> [<metric>] "
+              "[<expire-time>]\n",
+              argv[0]);
       return 1;
     }
 
@@ -53,11 +55,11 @@ public:
     if (ip.getRouting() == &staticRouting) {
       INVOKE({ rc = staticRouting.setEntry(entry); })
     } else if (ip.getRouting() == &ripRouting) {
-      RIP::TabEntry rentry {
-        device: entry.device,
-        dstMAC: entry.dstMAC,
-        metric: 1,
-        expireTime: 0
+      RIP::TabEntry rentry{
+        device : entry.device,
+        gateway : entry.gateway,
+        metric : 1,
+        expireTime : 0
       };
       if (argc >= 6 && sscanf(argv[5], "%d", &rentry.metric) != 1) {
         fprintf(stderr, "Invalid metric.\n");
@@ -100,13 +102,13 @@ public:
   int main(int argc, char **argv) override {
     INVOKE({
       const auto &table = staticRouting.getTable();
-      printf("IP | Netmask | Device | Dest MAC\n");
+      printf("IP | Netmask | Device | Gateway\n");
       time_t curTime = time(nullptr);
       for (auto &&e : table) {
         printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
-                                  " | %s | " ETHERNET_ADDR_FMT_STRING "\n",
+                                  " | %s | " IP_ADDR_FMT_STRING "\n",
                IP_ADDR_FMT_ARGS(e.addr), IP_ADDR_FMT_ARGS(e.mask),
-               e.device->name, ETHERNET_ADDR_FMT_ARGS(e.dstMAC));
+               e.device->name, IP_ADDR_FMT_ARGS(e.gateway));
       }
     })
     return 0;
@@ -120,17 +122,36 @@ public:
   int main(int argc, char **argv) override {
     INVOKE({
       const auto &table = ripRouting.getTable();
-      printf("IP | Mask | Device | Dest MAC | Metric | Exipre\n");
+      printf("IP | Mask | Device | Gateway | Metric | Exipre\n");
       time_t curTime = time(nullptr);
       for (auto &&e : table) {
         printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
-                                  " | %s | " ETHERNET_ADDR_FMT_STRING
+                                  " | %s | " IP_ADDR_FMT_STRING
                                   " | %d | %+ld\n",
                IP_ADDR_FMT_ARGS(e.first.addr), IP_ADDR_FMT_ARGS(e.first.mask),
-               e.second.device->name, ETHERNET_ADDR_FMT_ARGS(e.second.dstMAC),
+               e.second.device->name, IP_ADDR_FMT_ARGS(e.second.gateway),
                e.second.metric, e.second.expireTime - curTime);
       }
     })
+    return 0;
+  }
+};
+
+class CmdArpInfo : public Command {
+public:
+  CmdArpInfo() : Command("arp-a") {}
+
+  int main(int argc, char **argv) override {
+    INVOKE({
+      const auto &table = arp.getTable();
+      printf("IP Address | MAC Address | Expire Time \n");
+      time_t curTime = time(nullptr);
+      for (auto &&e : table) {
+        printf(IP_ADDR_FMT_STRING " | " ETHERNET_ADDR_FMT_STRING " | %+ld\n",
+               IP_ADDR_FMT_ARGS(e.first), ETHERNET_ADDR_FMT_ARGS(e.second.linkAddr),
+               e.second.expireTime - curTime);
+      }
+    });
     return 0;
   }
 };

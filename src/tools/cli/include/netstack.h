@@ -10,6 +10,7 @@
 #include "IP.h"
 #include "ICMP.h"
 #include "IPForward.h"
+#include "ARP.h"
 #include "LpmRouting.h"
 #include "UDP.h"
 #include "RIP.h"
@@ -17,6 +18,7 @@
 extern NetBase netBase;
 extern Ethernet ethernet;
 extern IP ip;
+extern ARP arp;
 extern LpmRouting staticRouting;
 extern UDP udp;
 extern RIP ripRouting;

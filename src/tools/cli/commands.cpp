@@ -37,6 +37,7 @@ std::vector<Command *> allCommands = {
   new CmdEthTest(),
 
   new CmdIPAddrAdd(),
+  new CmdArpInfo(),
   new CmdRouteAdd(),
   new CmdRouteRip(),
   new CmdRouteInfo(),

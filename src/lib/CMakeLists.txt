@@ -10,6 +10,7 @@ add_library(lab-netstack
   NetBase.cpp
   Ethernet.cpp
   IP.cpp
+  ARP.cpp
   ICMP.cpp
   IPForward.cpp
   LpmRouting.cpp

@@ -24,11 +24,12 @@ public:
 
   UDP &udp;
   NetworkLayer &network;
+  ARP &arp;
   NetBase &netBase;
 
   int updateCycle, expireCycle, cleanCycle;
 
-  RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_);
+  RIP(UDP &udp_, NetworkLayer &network_, ARP &arp_, NetBase &netBase_);
   RIP(const RIP &) = delete;
 
   struct Header {
@@ -40,15 +41,15 @@ public:
   struct DataEntry {
     uint16_t addressFamily;
     uint16_t zero0;
-    NetworkLayer::Addr address;
-    NetworkLayer::Addr mask;
+    Addr address;
+    Addr mask;
     uint32_t zero2;
     uint32_t metric;
   };
 
   struct TabEntry {
     LinkLayer::Device *device;
-    LinkLayer::Addr dstMAC;
+    Addr gateway;
     int metric;
     time_t expireTime;
   };
@@ -57,7 +58,7 @@ public:
 
   int setEntry(const Addr &addr, const Addr &mask, const TabEntry &entry);
 
-  int match(const Addr &addr, HopInfo &res) override;
+  int match(const Addr &addr, HopInfo &res, std::function<void ()> waitingCallback) override;
 
   int sendRequest();
   int sendUpdate();

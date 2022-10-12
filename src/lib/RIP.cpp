@@ -12,10 +12,10 @@ constexpr int RIP::UDP_PORT = 520;
 constexpr int RIP::ADDRESS_FAMILY = 2;
 constexpr int RIP::METRIC_INF = 16;
 
-RIP::RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_)
-    : udp(udp_), network(network_), netBase(netBase_), updateCycle(30),
-      expireCycle(180), cleanCycle(120), updateTime(0), isUp(false),
-      udpHandler(*this), loopHandler(*this) {}
+RIP::RIP(UDP &udp_, NetworkLayer &network_, ARP &arp_, NetBase &netBase_)
+    : udp(udp_), network(network_), arp(arp_), netBase(netBase_),
+      updateCycle(30), expireCycle(180), cleanCycle(120), updateTime(0),
+      isUp(false), matchTable(arp_), udpHandler(*this), loopHandler(*this) {}
 
 int RIP::setup() {
   if (isUp) {
@@ -36,10 +36,10 @@ int RIP::setEntry(const Addr &addr, const Addr &mask, const TabEntry &entry) {
     return 1;
   }
   int rc = matchTable.setEntry({
-    addr: addr,
-    mask: mask,
-    device: entry.device,
-    dstMAC: entry.dstMAC
+    addr : addr,
+    mask : mask,
+    device : entry.device,
+    gateway : entry.gateway
   });
   if (rc != 0)
     return rc;
@@ -47,8 +47,9 @@ int RIP::setEntry(const Addr &addr, const Addr &mask, const TabEntry &entry) {
   return 0;
 }
 
-int RIP::match(const Addr &addr, HopInfo &res) {
-  return matchTable.match(addr, res);
+int RIP::match(const Addr &addr, HopInfo &res,
+               std::function<void()> waitingCallback) {
+  return matchTable.match(addr, res, waitingCallback);
 }
 
 int RIP::sendRequest() {
@@ -77,12 +78,14 @@ int RIP::sendUpdate() {
 
   const auto &netAddrs = network.getAddrs();
   for (auto &&e : netAddrs) {
-    table[{e.addr, IP::Addr::MASK_HOST}] = TabEntry{
+    table[{e.addr & e.mask, e.mask}] =
+        {device : e.device, gateway : {0}, metric : 0, expireTime : 0};
+    matchTable.setEntry({
+      addr : e.addr & e.mask,
+      mask : e.mask,
       device : e.device,
-      dstMAC : e.device->addr,
-      metric : 0,
-      expireTime : 0
-    };
+      gateway : {0}
+    });
   }
 
   int dataLen = sizeof(Header) + sizeof(DataEntry) * (int)table.size();
@@ -161,7 +164,7 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
       realUpdated = true;
     } else {
       auto &&r = rip.table[{e.address, e.mask}];
-      if ((r.metric != 0 && r.device == info.linkDevice) ||
+      if ((r.metric != 0 && r.gateway == info.netHeader->src) ||
           metric < r.metric) {
         updateEnt = true;
         if (metric != r.metric)
@@ -172,15 +175,15 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
     if (updateEnt) {
       rip.table[{e.address, e.mask}] = TabEntry{
         device : info.linkDevice,
-        dstMAC : info.linkHeader->src,
+        gateway : info.netHeader->src,
         metric : metric,
         expireTime : curTime + rip.expireCycle
       };
       rip.matchTable.setEntry({
-        addr: e.address,
-        mask: e.mask,
+        addr : e.address,
+        mask : e.mask,
         device : info.linkDevice,
-        dstMAC : info.linkHeader->src,
+        gateway : info.netHeader->src,
       });
     }
   }
