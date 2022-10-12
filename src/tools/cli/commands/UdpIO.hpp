@@ -56,8 +56,16 @@ public:
     while (fgets(line, MAXLINE, stdin)) {
       int dataLen = strlen(line);
       if (!listen.load()) {
-        INVOKE(
-            { udp.sendSegment(line, dataLen, src, port, remote, remotePort); })
+        std::mutex sending;
+        INVOKE({
+          auto retryCallback = [&] { sending.unlock(); };
+          int rc = udp.sendSegment(
+              line, dataLen, src, port, remote, remotePort,
+              {autoRetry : true, waitingCallback : retryCallback});
+          if (rc == E_WAIT_FOR_TRYAGAIN)
+            sending.lock();
+        })
+        sending.lock();
       }
       if (strcmp(line, ":quit\n") == 0) {
         break;
@@ -110,7 +118,16 @@ public:
     char line[MAXLINE];
     while (fgets(line, MAXLINE, stdin)) {
       int dataLen = strlen(line);
-      INVOKE({ udp.sendSegment(line, dataLen, src, port, remote, remotePort); })
+      std::mutex sending;
+      INVOKE({
+        auto retryCallback = [&] { sending.unlock(); };
+        int rc = udp.sendSegment(
+            line, dataLen, src, port, remote, remotePort,
+            {autoRetry : true, waitingCallback : retryCallback});
+        if (rc == E_WAIT_FOR_TRYAGAIN)
+          sending.lock();
+      })
+      sending.lock();
       if (strcmp(line, ":quit\n") == 0) {
         break;
       }

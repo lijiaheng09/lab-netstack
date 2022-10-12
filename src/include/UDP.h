@@ -32,6 +32,11 @@ public:
   UDP(NetworkLayer &network_);
   UDP(const UDP &) = delete;
 
+  struct SendOptions {
+    bool autoRetry;
+    std::function<void ()> waitingCallback;
+  };
+
   /**
    * @brief Send an UDP segment.
    *
@@ -41,12 +46,14 @@ public:
    * @param srcPort Source port.
    * @param dstAddr IP address of the destination.
    * @param dstPort Destination port.
+   * @param options Other options
    * @return 0 on success, negative on error.
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
   int sendSegment(const void *data, int dataLen,
                   const NetworkLayer::Addr &srcAddr, int srcPort,
-                  const NetworkLayer::Addr &dstAddr, int dstPort);
+                  const NetworkLayer::Addr &dstAddr, int dstPort,
+                  SendOptions = {});
 
   class RecvCallback {
   public:

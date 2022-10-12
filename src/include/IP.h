@@ -133,7 +133,8 @@ public:
      * @return 0 on success, negative on error.
      * Including: E_WAIT_FOR_TRYAGAIN.
      */
-    virtual int match(const Addr &addr, HopInfo &res, std::function<void ()> waitingCallback = 0) = 0;
+    virtual int match(const Addr &addr, HopInfo &res,
+                      std::function<void()> waitingCallback = 0) = 0;
   };
 
   /**
@@ -150,10 +151,9 @@ public:
    */
   Routing *getRouting();
 
-  static constexpr int E_WAIT_ROUTING = -3001;
-
   struct SendOptions {
     int timeToLive;
+    bool autoRetry;
     std::function<void()> waitingCallback;
   };
 
@@ -163,6 +163,8 @@ public:
    *
    * @param buf Pointer to the packet (with checksum may be modified).
    * @param len Length of the packet.
+   * @param options Other options.
+   *        WARNING: autoRetry will automatically free the packet.
    *
    * @return 0 on success, negative on error.
    * Including: E_WAIT_FOR_TRYAGAIN.
@@ -185,7 +187,7 @@ public:
    */
   int sendPacket(const void *data, int dataLen, const Addr &src,
                  const Addr &dst, int protocol,
-                 SendOptions options = {timeToLive : 64});
+                 SendOptions options = {});
 
   class RecvCallback {
   public:

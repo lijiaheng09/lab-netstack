@@ -30,14 +30,14 @@ extern LoopDispatcher loopDispatcher;
 
 /**
  * @brief Initialize the netstack.
- * 
+ *
  * @return 0 on success, negative on error.
  */
 int initNetStack();
 
 /**
  * @brief Start the netstack main loop.
- * 
+ *
  * @return 0 on success, negative on error.
  */
 int startLoop();

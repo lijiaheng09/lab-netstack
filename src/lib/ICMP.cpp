@@ -44,7 +44,8 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
   assert(calcInternetChecksum16(msg, msgLen) == 0);
 #endif
 
-  rc = ip.sendPacket(msg, msgLen, src, origHeader.src, PROTOCOL_ID);
+  rc = ip.sendPacket(msg, msgLen, src, origHeader.src, PROTOCOL_ID,
+                     {autoRetry : true});
   free(msg);
   return rc;
 }
@@ -83,7 +84,7 @@ int ICMP::sendEchoOrReply(const IP::Addr &src, const IP::Addr &dst, int type,
 #endif
 
   int rc = ip.sendPacket(msg, msgLen, src, dst, PROTOCOL_ID,
-                         {timeToLive : timeToLive});
+                         {timeToLive : timeToLive, autoRetry : true});
   free(msg);
   return rc;
 }
@@ -140,7 +141,8 @@ int ICMP::IPHandler::handle(const void *msg, int msgLen, const Info &info) {
 #endif
 
       rc = icmp.ip.sendPacket(reply, msgLen, info.netHeader->dst,
-                              info.netHeader->src, PROTOCOL_ID);
+                              info.netHeader->src, PROTOCOL_ID,
+                              {autoRetry : true});
       free(reply);
     } while (0);
   }

@@ -65,7 +65,7 @@ public:
         rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
                                      sizeof(data));
       })
-      if (rc != 0) {
+      if (rc != 0 && rc != E_WAIT_FOR_TRYAGAIN) {
         goto END;
       }
       if (i < TIMES)
@@ -162,8 +162,8 @@ public:
       INVOKE({
         rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
                                      sizeof(data), i);
-      });
-      if (rc != 0)
+      })
+      if (rc != 0 && rc != E_WAIT_FOR_TRYAGAIN)
         break;
       if (!idle.try_lock_for(i * 2s)) {
         printf("*\n");

@@ -33,7 +33,8 @@ int ARP::sendRequest(NetworkLayer::Addr target) {
   return rc;
 }
 
-int ARP::match(NetworkLayer::Addr netAddr, LinkLayer::Addr &linkAddr, std::function<void ()> waitingCallback) {
+int ARP::match(NetworkLayer::Addr netAddr, LinkLayer::Addr &linkAddr,
+               std::function<void()> waitingCallback) {
   time_t curTime = time(nullptr);
   auto p = table.find(netAddr);
   if (p != table.end()) {
@@ -47,9 +48,9 @@ int ARP::match(NetworkLayer::Addr netAddr, LinkLayer::Addr &linkAddr, std::funct
   sendRequest(netAddr);
   if (waitingCallback)
     waiting.push_back({
-      addr: netAddr,
-      timeoutTime: 0, // No timeout now
-      handler: waitingCallback
+      addr : netAddr,
+      timeoutTime : curTime + 3, // may provide better interface in the future
+      handler : waitingCallback
     });
   return E_WAIT_FOR_TRYAGAIN;
 }
@@ -95,8 +96,9 @@ int ARP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
     } else if (header.op == htons(OP_RESPONSE)) {
       time_t curTime = time(nullptr);
       arp.table[header.spa] = {curTime + EXPIRE_CYCLE, header.sha};
-      for (auto it = arp.waiting.begin(); it != arp.waiting.end(); ) {
-        if (curTime >= it->timeoutTime || it->addr == header.spa) {
+      for (auto it = arp.waiting.begin(); it != arp.waiting.end();) {
+        if ((it->timeoutTime && curTime >= it->timeoutTime) ||
+            it->addr == header.spa) {
           it->handler();
           it = arp.waiting.erase(it);
         } else {

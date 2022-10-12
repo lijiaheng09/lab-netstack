@@ -47,7 +47,7 @@ int IPForward::IPHandler::handle(const void *data, int dataLen,
     if (cur.tv_usec >= info.ts.tv_usec)
       procTime++;
   }
-  
+
   int packetLen = ntohs(origHeader.totalLength);
 
   // Assuming the forwarding time much less than 1s.
@@ -67,7 +67,8 @@ int IPForward::IPHandler::handle(const void *data, int dataLen,
   auto &newHeader = *(IP::Header *)newBuf;
   newHeader.timeToLive -= procTime;
 
-  int rc = ipForward.ip.sendPacketWithHeader(newBuf, packetLen);
-  free(newBuf);
+  int rc =
+      ipForward.ip.sendPacketWithHeader(newBuf, packetLen, {autoRetry : true});
+  // free(newBuf);
   return rc;
 }

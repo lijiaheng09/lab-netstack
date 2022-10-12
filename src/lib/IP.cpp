@@ -96,11 +96,38 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
     return -1;
   }
   Routing::HopInfo hop;
-  rc = routing->match(header.dst, hop);
+
+  if (options.autoRetry) {
+    auto originalCallback = options.waitingCallback;
+    options.waitingCallback = [=]() {
+      Routing::HopInfo hop;
+      int rc = routing->match(header.dst, hop, options.waitingCallback);
+      if (rc < 0) {
+        if (rc == E_WAIT_FOR_TRYAGAIN)
+          ERRLOG("IP routing for " IP_ADDR_FMT_STRING ": wait to try again.\n",
+                 IP_ADDR_FMT_ARGS(header.dst));
+        else
+          ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
+                 IP_ADDR_FMT_ARGS(header.dst));
+        free(packet);
+        return;
+      }
+      hop.device->sendFrame(packet, packetLen, hop.dstMAC, PROTOCOL_ID);
+      free(packet);
+      if (originalCallback)
+        originalCallback();
+    };
+    rc = routing->match(header.dst, hop, options.waitingCallback);
+  }
+
   if (rc < 0) {
-    ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
-           IP_ADDR_FMT_ARGS(header.dst));
-    return -1;
+    if (rc == E_WAIT_FOR_TRYAGAIN)
+      ERRLOG("IP routing for " IP_ADDR_FMT_STRING ": wait to try again.\n",
+             IP_ADDR_FMT_ARGS(header.dst));
+    else
+      ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
+             IP_ADDR_FMT_ARGS(header.dst));
+    return rc;
   }
   return hop.device->sendFrame(packet, packetLen, hop.dstMAC, PROTOCOL_ID);
 }
@@ -117,6 +144,8 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
     ERRLOG("Invalid IP protocol field: %X\n", protocol);
     return -1;
   }
+  if (options.timeToLive == 0)
+    options.timeToLive = 64; // default
   if ((options.timeToLive >> 8) != 0) {
     ERRLOG("Invalid IP TTL field: %X\n", options.timeToLive);
     return -1;
@@ -143,7 +172,8 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
   };
   memcpy(&header + 1, data, dataLen);
   int rc = sendPacketWithHeader(packet, packetLen, options);
-  free(packet);
+  if (!options.autoRetry)
+    free(packet);
   return rc;
 }
 

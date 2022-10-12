@@ -16,7 +16,8 @@ UDP::UDP(NetworkLayer &network_) : network(network_), networkHandler(*this) {}
 
 int UDP::sendSegment(const void *data, int dataLen,
                      const NetworkLayer::Addr &srcAddr, int srcPort,
-                     const NetworkLayer::Addr &dstAddr, int dstPort) {
+                     const NetworkLayer::Addr &dstAddr, int dstPort,
+                     SendOptions options) {
   int segLen = sizeof(Header) + dataLen;
   int bufLen = sizeof(PseudoNetworkHeader) + segLen;
 
@@ -56,7 +57,10 @@ int UDP::sendSegment(const void *data, int dataLen,
   assert(calcInternetChecksum16(buf, bufLen) == 0);
 #endif
 
-  int rc = network.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID);
+  int rc = network.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {
+    autoRetry : options.autoRetry,
+    waitingCallback : options.waitingCallback
+  });
   free(buf);
   return rc;
 }
