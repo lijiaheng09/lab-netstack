@@ -1,6 +1,8 @@
 #ifndef NETSTACK_NET_STACK_H
 #define NETSTACK_NET_STACK_H
 
+#include <functional>
+
 #include "utils.h"
 #include "LoopDispatcher.h"
 
@@ -17,8 +19,8 @@ public:
     struct pcap *p;
 
   public:
-    char *const name;   // Name of the device
-    const int linkType; // Type of its link layer.
+    const char *const name; // Name of the device.
+    const int linkType;     // Type of its link layer.
 
     Device(struct pcap *p_, const char *name_, int linkType_);
     Device(const Device &) = delete;
@@ -30,7 +32,7 @@ public:
   /**
    * @brief Add a device to the netstack.
    *
-   * @param device Pointer to the `Device` object.
+   * @param device The device.
    */
   void addDevice(Device *device);
 
@@ -38,7 +40,7 @@ public:
    * @brief Find an added device by its name.
    *
    * @param name Name of the device.
-   * @return Pointer to the `Device` object, `nullptr` if not found.
+   * @return The device, `nullptr` if not found.
    */
   Device *findDeviceByName(const char *name);
 
@@ -52,53 +54,39 @@ public:
    */
   int send(const void *buf, size_t len, Device *dev);
 
-  class RecvCallback {
-  public:
-    int linkType; // The matching linkType, -1 for any.
-
-    /**
-     * @brief Construct a new RecvCallback object.
-     *
-     * @param linkType_ The matching linkType, -1 for any.
-     */
-    RecvCallback(int linkType_);
-
-    struct Info {
-      timeval ts;
-    };
-
-    /**
-     * @brief Handle a received frame.
-     *
-     * @param frame Pointer to the frame.
-     * @param frameLen Length of the frame.
-     * @param device The receiving device.
-     * @param info Other information of the received frame.
-     * @return 0 on success, negative on error.
-     */
-    virtual int handle(const void *frame, int frameLen, Device *device,
-                       const Info &info) = 0;
+  struct RecvInfo {
+    Device *device;
+    timeval timestamp;
   };
 
   /**
-   * @brief Register a callback on receiving frames.
+   * @brief Handle a receiving frame.
    *
-   * @param callback Pointer to a `RecvCallback` object (which need to be
-   * persistent).
+   * @param buf Pointer to the frame.
+   * @param len Length of the frame.
+   * @param info Other information.
+   *
+   * @return 0 on normal, 1 to remove the handler.
    */
-  void addRecvCallback(RecvCallback *callback);
+  using RecvHandler =
+      std::function<int(const void *buf, size_t len, const RecvInfo &info)>;
 
   /**
-   * @brief Handle a receiving frame; dispatch it to registered callbacks.
+   * @brief Add a handler for receiving frames.
    *
-   * @param frame Pointer to the frame.
-   * @param frameLen Length of the frame.
-   * @param device The device receiving the frame.
-   * @param info Other information of the received frame.
-   * @return 0 on success, negative on error.
+   * @param handler The handler.
+   * @param linkType The matched link-layer header type, -1 for any.
    */
-  int handleFrame(const void *frame, int frameLen, Device *device,
-                  RecvCallback::Info info);
+  void addOnRecv(RecvHandler handler, int linkType = -1);
+
+  /**
+   * @brief Handle a receiving frame.
+   *
+   * @param buf Pointer to the frame.
+   * @param len Length of the frame.
+   * @param info Other information.
+   */
+  void handleRecv(const void *buf, size_t len, const RecvInfo &info);
 
   /**
    * @brief Setup the netstack base.
@@ -124,7 +112,7 @@ public:
 
 private:
   Vector<Device *> devices;
-  Vector<RecvCallback *> callbacks;
+  HashMultMap<int, RecvHandler> onRecv;
   Vector<LoopCallback *> loopCallbacks;
 };
 

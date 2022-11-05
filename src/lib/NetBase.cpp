@@ -13,7 +13,7 @@ NetBase::Device::Device(pcap_t *p_, const char *name_, int linkType_)
 
 NetBase::Device::~Device() {
   pcap_close(p);
-  free(name);
+  free(const_cast<char *>(name));
 }
 
 void NetBase::addDevice(Device *device) {
@@ -38,27 +38,33 @@ int NetBase::send(const void *buf, size_t len, Device *dev) {
   return rc;
 }
 
-NetBase::RecvCallback::RecvCallback(int linkType_) : linkType(linkType_) {}
-
-void NetBase::addRecvCallback(RecvCallback *callback) {
-  callbacks.push_back(callback);
+void NetBase::addOnRecv(RecvHandler handler, int linkType) {
+  onRecv.insert({linkType, handler});
 }
 
-int NetBase::handleFrame(const void *frame, int frameLen, Device *device,
-                         RecvCallback::Info info) {
-  int rc = 0;
-  for (auto *c : callbacks)
-    if (c->linkType == -1 || device->linkType == c->linkType)
-      if (c->handle(frame, frameLen, device, info) != 0)
-        rc = -1;
-  return rc;
+void NetBase::handleRecv(const void *buf, size_t len, const RecvInfo &info) {
+  auto r = onRecv.equal_range(-1);
+  for (auto it = r.first; it != r.second;) {
+    if (it->second(buf, len, info) == 1)
+      it = onRecv.erase(it);
+    else
+      it++;
+  }
+
+  r = onRecv.equal_range(info.device->linkType);
+  for (auto it = r.first; it != r.second;) {
+    if (it->second(buf, len, info) == 1)
+      it = onRecv.erase(it);
+    else
+      it++;
+  }
 }
 
 int NetBase::setup() {
   char errbuf[PCAP_ERRBUF_SIZE];
   int rc = pcap_init(PCAP_CHAR_ENC_UTF_8, errbuf);
   if (rc != 0)
-    ERRLOG("pcap_init error: %s\n", errbuf);
+    LOG_ERR("pcap_init: %s\n", errbuf);
   return rc;
 }
 
@@ -71,13 +77,13 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
                        const u_char *bytes) {
   PcapHandleArgs args = *(PcapHandleArgs *)user;
   if (h->caplen != h->len) {
-    ERRLOG("Incomplete frame captured (device %s): %d/%d.\n", args.device->name,
-           h->caplen, h->len);
+    LOG_ERR("Incomplete frame captured on %s: %d/%d", args.device->name,
+            h->caplen, h->len);
     return;
   }
 
-  NetBase::RecvCallback::Info info = {ts : h->ts};
-  args.netBase->handleFrame(bytes, h->len, args.device, info);
+  NetBase::RecvInfo info = {.device = args.device, .timestamp = h->ts};
+  args.netBase->handleRecv(bytes, h->len, info);
 }
 
 void NetBase::addLoopCallback(LoopCallback *callback) {

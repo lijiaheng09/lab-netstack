@@ -2,14 +2,31 @@
 #define NETSTACK_UTILS_H
 
 #include <cinttypes>
-#include <vector>
 
-template <typename T>
-using Vector = std::vector<T>;
+#include <vector>
+#include <unordered_map>
+
+template <typename T> using Vector = std::vector<T>;
+
+template <typename T> class Hash {
+  static constexpr size_t SEED = 257;
+
+public:
+  size_t operator()(const T &v) const {
+    size_t r = 0;
+    auto *b = (const unsigned char *)&v;
+    for (size_t i = 0; i != sizeof(v); i++)
+      r = r * SEED + b[i];
+    return r;
+  }
+};
+
+template <typename K, typename V>
+using HashMultMap = std::unordered_multimap<K, V, Hash<K>>;
 
 /**
  * @brief Calculate the 16-bit Internet checksum.
- * 
+ *
  * @param data Pointer to the data to be checksummed.
  * @param len Length of the data.
  * @return The checksum of the data, in network endian.

@@ -43,8 +43,8 @@ int IPForward::IPHandler::handle(const void *data, int dataLen,
 
   timeval cur;
   if (gettimeofday(&cur, nullptr) == 0) {
-    procTime = cur.tv_sec - info.ts.tv_sec;
-    if (cur.tv_usec >= info.ts.tv_usec)
+    procTime = cur.tv_sec - info.timestamp.tv_sec;
+    if (cur.tv_usec >= info.timestamp.tv_usec)
       procTime++;
   }
 

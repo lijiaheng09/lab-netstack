@@ -87,12 +87,11 @@ public:
      */
     RecvCallback(int etherType_);
 
-    struct Info : public NetBase::RecvCallback::Info {
+    struct Info {
+      timeval timestamp;
+
       Device *linkDevice;
       const Header *linkHeader;
-
-      Info(const NetBase::RecvCallback::Info &base)
-          : NetBase::RecvCallback::Info(base) {}
     };
 
     /**
@@ -115,6 +114,15 @@ public:
   void addRecvCallback(RecvCallback *callback);
 
   /**
+   * @brief Handle a receiving frame from `NetBase`.
+   *
+   * @param frame Pointer to the frame.
+   * @param frameLen Length of the frame.
+   * @param info Other information.
+   */
+  void handleRecv(const void *frame, int frameLen, const NetBase::RecvInfo &info);
+
+  /**
    * @brief Setup the Ethernet link layer service.
    *
    * @return 0 on success, negative on error.
@@ -122,15 +130,6 @@ public:
   int setup();
 
 private:
-  class NetBaseHandler : public NetBase::RecvCallback {
-    Ethernet &ethernet;
-
-  public:
-    NetBaseHandler(Ethernet &ethernet_);
-    int handle(const void *frame, int frameLen, NetBase::Device *baseDevice,
-               const Info &info) override;
-  } netBaseHandler;
-
   Vector<RecvCallback *> callbacks;
 };
 
