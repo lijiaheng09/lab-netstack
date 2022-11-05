@@ -90,14 +90,7 @@ private:
 
   bool isUp;
 
-  class UDPHandler : public UDP::RecvCallback {
-    RIP &rip;
-
-  public:
-    UDPHandler(RIP &rip_);
-
-    int handle(const void *msg, int msgLen, const Info &info) override;
-  } udpHandler;
+  void handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info);
 
   class LoopHandler : public LoopCallback {
     RIP &rip;

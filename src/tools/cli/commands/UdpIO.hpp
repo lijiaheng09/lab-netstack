@@ -5,18 +5,20 @@
 #include <mutex>
 
 class CmdNcUdpListen : public Command {
-  class Handler : public UDP::RecvCallback {
+  class Handler {
     std::atomic<bool> &listen;
     IP::Addr &remote;
     int &remotePort;
 
   public:
+    int listenPort;
+
     Handler(std::atomic<bool> &listen_, IP::Addr &remote_, int &remotePort_,
             int port_)
         : listen(listen_), remote(remote_),
-          remotePort(remotePort_), UDP::RecvCallback(port_) {}
+          remotePort(remotePort_), listenPort(port_) {}
 
-    int handle(const void *data, int dataLen, const Info &info) override {
+    int handle(const void *data, int dataLen, const UDP::RecvInfo &info) {
       if (listen.load()) {
         remote = info.l3.header->src;
         remotePort = ntohs(info.udpHeader->srcPort);
@@ -48,8 +50,22 @@ public:
     std::atomic<bool> listen;
     listen.store(true);
 
+    std::atomic<bool> close;
+    std::mutex closed;
+    close.store(false);
+    closed.lock();
+
     Handler *handler = new Handler(listen, remote, remotePort, port);
-    udp.addRecvCallback(handler);
+    INVOKE({
+      udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
+        if (close) {
+          closed.unlock();
+          return 1;
+        }
+        handler->handle(args...);
+        return 0;
+      }, handler->listenPort);
+    })
 
     static constexpr int MAXLINE = 1024;
     char line[MAXLINE];
@@ -72,18 +88,20 @@ public:
       }
     }
 
-    INVOKE({ udp.removeRecvCallback(handler); })
+    close.store(true);
+    closed.lock();
     delete handler;
     return 0;
   }
 };
 
 class CmdNcUdp : public Command {
-  class Handler : public UDP::RecvCallback {
+  class Handler {
   public:
-    Handler(int port_) : UDP::RecvCallback(port_) {}
+    int listenPort;
+    Handler(int port_) : listenPort(port_) {}
 
-    int handle(const void *data, int dataLen, const Info &info) override {
+    int handle(const void *data, int dataLen, const UDP::RecvInfo &info) {
       printf("%.*s", dataLen, (const char *)data);
       return 0;
     }
@@ -111,8 +129,22 @@ public:
     // Need to assign a port.
     port = 10000 + random() % 50000;
 
+    std::atomic<bool> close;
+    std::mutex closed;
+    close.store(false);
+    closed.lock();
+
     Handler *handler = new Handler(port);
-    udp.addRecvCallback(handler);
+    INVOKE({
+      udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
+        if (close) {
+          closed.unlock();
+          return 1;
+        }
+        handler->handle(args...);
+        return 0;
+      }, handler->listenPort);
+    })
 
     static constexpr int MAXLINE = 1024;
     char line[MAXLINE];
@@ -133,7 +165,8 @@ public:
       }
     }
 
-    INVOKE({ udp.removeRecvCallback(handler); })
+    close.store(true);
+    closed.lock();
     delete handler;
     return 0;
   };

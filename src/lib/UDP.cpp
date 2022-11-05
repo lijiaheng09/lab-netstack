@@ -65,19 +65,8 @@ int UDP::sendSegment(const void *data, int dataLen,
   return rc;
 }
 
-UDP::RecvCallback::RecvCallback(int port_) : port(port_) {}
-
-void UDP::addRecvCallback(RecvCallback *callback) {
-  callbacks.push_back(callback);
-}
-
-int UDP::removeRecvCallback(RecvCallback *callback) {
-  for (auto it = callbacks.begin(); it != callbacks.end(); it++)
-    if (*it == callback) {
-      callbacks.erase(it);
-      return 0;
-    }
-  return 1;
+void UDP::addOnRecv(RecvHandler handler, uint16_t port) {
+  onRecv.insert({port, handler});
 }
 
 int UDP::setup() {
@@ -124,30 +113,29 @@ void UDP::handleRecv(const void *seg, size_t segLen,
     return;
   }
   PseudoL3Header pseudoHeader{
-    srcAddr : info.header->src,
-    dstAddr : info.header->dst,
-    zero : 0,
-    protocol : info.header->protocol,
-    udpLength : header.length
+    .srcAddr = info.header->src,
+    .dstAddr = info.header->dst,
+    .zero = 0,
+    .protocol = info.header->protocol,
+    .udpLength = header.length
   };
   if (header.checksum != 0 && calcUdpChecksum(pseudoHeader, seg, segLen) != 0) {
     LOG_INFO("UDP Checksum error");
     return;
   }
 
-  UDP::RecvCallback::Info newInfo{
+  const void *data = &header + 1;
+  size_t dataLen = segLen - sizeof(Header);
+  UDP::RecvInfo newInfo{
     .l3 = info,
     .udpHeader = &header
   };
 
-  const void *data = &header + 1;
-  int dataLen = segLen - sizeof(Header);
-
-  int port = ntohs(header.dstPort);
-  int rc = 0;
-  for (auto *c : callbacks)
-    if (c->port == -1 || c->port == port) {
-      if (c->handle(data, dataLen, newInfo) != 0)
-        rc = -1;
-    }
+  auto r = onRecv.equal_range(ntohs(header.dstPort));
+  for (auto it = r.first; it != r.second; ) {
+    if (it->second(data, dataLen, newInfo) == 1)
+      it = onRecv.erase(it);
+    else
+      it++;
+  }
 }

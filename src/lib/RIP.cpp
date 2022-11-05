@@ -15,7 +15,7 @@ constexpr int RIP::METRIC_INF = 16;
 RIP::RIP(UDP &udp_, NetworkLayer &network_, ARP &arp_, NetBase &netBase_)
     : udp(udp_), network(network_), arp(arp_), netBase(netBase_),
       updateCycle(30), expireCycle(180), cleanCycle(120), updateTime(0),
-      isUp(false), matchTable(arp_), udpHandler(*this), loopHandler(*this) {}
+      isUp(false), matchTable(arp_), loopHandler(*this) {}
 
 int RIP::setup() {
   if (isUp) {
@@ -23,7 +23,12 @@ int RIP::setup() {
     return 1;
   }
   isUp = true;
-  udp.addRecvCallback(&udpHandler);
+  udp.addOnRecv(
+      [this](auto &&...args) -> int {
+        handleRecv(args...);
+        return 0;
+      },
+      UDP_PORT);
   netBase.addLoopCallback(&loopHandler);
   sendRequest();
   sendUpdate();
@@ -119,25 +124,23 @@ const RIP::Table &RIP::getTable() {
   return table;
 }
 
-RIP::UDPHandler::UDPHandler(RIP &rip_)
-    : rip(rip_), UDP::RecvCallback(UDP_PORT) {}
-
-int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
+void RIP::handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info) {
   if (msgLen < sizeof(Header)) {
-    ERRLOG("Truncated RIP header: %d/%d\n", msgLen, (int)sizeof(Header));
-    return -1;
+    LOG_ERR("Truncated RIP header: %lu/%lu\n", msgLen, sizeof(Header));
+    return;
   }
   const Header &header = *(const Header *)msg;
 
   Header requestHeader{command : 1, version : 0, zero : 0};
   if (memcmp(msg, &requestHeader, sizeof(Header)) == 0) {
-    return rip.sendUpdate();
+    sendUpdate();
+    return;
   }
 
   Header requriedHeader{command : 2, version : 0, zero : 0};
   if (memcmp(msg, &requriedHeader, sizeof(Header)) != 0) {
-    ERRLOG("Invalid RIP header.\n");
-    return -1;
+    LOG_ERR("Invalid RIP header.\n");
+    return;
   }
   const DataEntry *ents = (const DataEntry *)(&header + 1);
   int nEntries = (msgLen - sizeof(Header)) / sizeof(DataEntry);
@@ -155,15 +158,15 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
       continue;
 
     // Ignore the local host.
-    if (rip.network.findDeviceByAddr(e.address))
+    if (network.findDeviceByAddr(e.address))
       continue;
 
     bool updateEnt = false;
-    if (!rip.table.count({e.address, e.mask})) {
+    if (!table.count({e.address, e.mask})) {
       updateEnt = true;
       realUpdated = true;
     } else {
-      auto &&r = rip.table[{e.address, e.mask}];
+      auto &&r = table[{e.address, e.mask}];
       if ((r.metric != 0 && r.gateway == info.l3.header->src) ||
           metric < r.metric) {
         updateEnt = true;
@@ -173,30 +176,28 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
     }
 
     if (updateEnt) {
-      rip.table[{e.address, e.mask}] = TabEntry{
+      table[{e.address, e.mask}] = TabEntry{
         device : info.l2.device,
         gateway : info.l3.header->src,
         metric : metric,
-        expireTime : curTime + rip.expireCycle
+        expireTime : curTime + expireCycle
       };
       if (metric < METRIC_INF) {
-        rip.matchTable.setEntry({
+        matchTable.setEntry({
           addr : e.address,
           mask : e.mask,
           device : info.l2.device,
           gateway : info.l3.header->src,
         });
       } else {
-        rip.matchTable.delEntry(e.address, e.mask);
+        matchTable.delEntry(e.address, e.mask);
       }
     }
   }
 
   // Triggered updates
   if (realUpdated)
-    rip.sendUpdate();
-
-  return 0;
+    sendUpdate();
 }
 
 RIP::LoopHandler::LoopHandler(RIP &rip_) : rip(rip_) {}
@@ -209,7 +210,8 @@ int RIP::LoopHandler::handle() {
       if (curTime > e.second.expireTime) {
         rip.matchTable.delEntry(it->first.addr, it->first.mask);
         e.second.metric = METRIC_INF;
-      } if (curTime - e.second.expireTime > rip.cleanCycle) {
+      }
+      if (curTime - e.second.expireTime > rip.cleanCycle) {
         it = rip.table.erase(it);
         continue;
       }

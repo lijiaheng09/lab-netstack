@@ -50,54 +50,35 @@ public:
    * @return 0 on success, negative on error.
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
-  int sendSegment(const void *data, int dataLen,
-                  const L3::Addr &srcAddr, int srcPort,
-                  const L3::Addr &dstAddr, int dstPort,
+  int sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
+                  int srcPort, const L3::Addr &dstAddr, int dstPort,
                   SendOptions = {});
 
-  class RecvCallback {
-  public:
-    int port; // The matching port, -1 for any.
-
-    /**
-     * @brief Construct a new RecvCallback object
-     *
-     * @param port_ // The matching port, -1 for any.
-     */
-    RecvCallback(int port_);
-
-    struct Info {
-      L3::RecvInfo l3;
-      L3::L2::RecvInfo &l2 = l3.l2;
-      const Header *udpHeader;
-    };
-
-    /**
-     * @brief Handle a received UDP segment (guaranteed valid).
-     *
-     * @param data Pointer to the payload.
-     * @param dataLen Length of the payload.
-     * @param info Other information of the received packet.
-     * @return 0 on success, negative on error.
-     */
-    virtual int handle(const void *data, int dataLen, const Info &info) = 0;
+  struct RecvInfo {
+    L3::RecvInfo l3;
+    L3::L2::RecvInfo &l2 = l3.l2;
+    const Header *udpHeader;
   };
 
   /**
-   * @brief Register a callback on receiving UDP segments.
+   * @brief Handle a receiving UDP datagram.
    *
-   * @param callback Pointer to a `RecvCallback` object (which need to be
-   * persistent).
+   * @param data Pointer to the payload.
+   * @param dataLen Length of the payload.
+   * @param info Other information.
+   *
+   * @return 0 on normal, 1 to remove the handler.
    */
-  void addRecvCallback(RecvCallback *callback);
+  using RecvHandler = std::function<int(const void *data, size_t dataLen,
+                                        const RecvInfo &info)>;
 
   /**
-   * @brief Remove a registered receiving callback.
+   * @brief Add a handler for receiving UDP datagrams.
    *
-   * @param callback Pointer to the `RecvCallback` object.
-   * @return 0 on success, 1 if no such callback.
+   * @param handler The handler.
+   * @param port The matched receiving (destination) port.
    */
-  int removeRecvCallback(RecvCallback *callback);
+  void addOnRecv(RecvHandler handler, uint16_t port);
 
   /**
    * @brief Setup the UDP transport service.
@@ -107,10 +88,9 @@ public:
   int setup();
 
 private:
-  Vector<RecvCallback *> callbacks;
+  HashMultMap<uint16_t, RecvHandler> onRecv;
 
-  void handleRecv(const void *seg, size_t segLen,
-                  const L3::RecvInfo &info);
+  void handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info);
 };
 
 #endif
