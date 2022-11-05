@@ -11,13 +11,17 @@
 
 #include "IP.h"
 #include "ICMP.h"
+#include "ARP.h"
 
 constexpr IP::Addr IP::BROADCAST;
 
-IP::IP(L2 &l2_) : l2(l2_), routing(nullptr), icmp(*(new ICMP(*this))) {}
+IP::IP(L2 &l2_)
+    : l2(l2_), routing(nullptr), icmp(*(new ICMP(*this))),
+      arp(*(new ARP(l2, *this))) {}
 
 IP::~IP() {
   delete &icmp;
+  delete &arp;
 }
 
 void IP::addAddr(DevAddr entry) {
@@ -44,7 +48,7 @@ int IP::getSrcAddr(Addr dst, Addr &res) {
   if (addrs.empty())
     return -1;
   Routing::HopInfo hop;
-  int rc = routing->match(dst, hop);
+  int rc = routing->query(dst, hop);
   if (rc == 0)
     return getAnyAddr(hop.device, res);
   else if (rc == E_WAIT_FOR_TRYAGAIN && hop.gateway != Addr{0})
@@ -110,40 +114,49 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
     return -1;
   }
   Routing::HopInfo hop;
+  rc = routing->query(header.dst, hop);
+  if (rc != 0)
+    return rc;
 
-  if (options.autoRetry) {
-    auto originalCallback = options.waitingCallback;
-    options.waitingCallback = [=]() {
-      Routing::HopInfo hop;
-      int rc = routing->match(header.dst, hop, options.waitingCallback);
-      if (rc < 0) {
-        if (rc == E_WAIT_FOR_TRYAGAIN)
-          ERRLOG("IP routing for " IP_ADDR_FMT_STRING ": wait to try again.\n",
-                 IP_ADDR_FMT_ARGS(header.dst));
-        else
-          ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
-                 IP_ADDR_FMT_ARGS(header.dst));
-        free(packet);
-        return;
-      }
-      l2.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
-      free(packet);
-      if (originalCallback)
-        originalCallback();
-    };
-  }
-
-  rc = routing->match(header.dst, hop, options.waitingCallback);
+  Addr hopAddr = hop.gateway == Addr{0} ? header.dst : hop.gateway;
+  L2::Addr dstMAC;
+  rc = arp.query(hopAddr, dstMAC);
   if (rc < 0) {
-    if (rc == E_WAIT_FOR_TRYAGAIN)
+    if (rc == E_WAIT_FOR_TRYAGAIN) {
       ERRLOG("IP routing for " IP_ADDR_FMT_STRING ": wait to try again.\n",
              IP_ADDR_FMT_ARGS(header.dst));
-    else
+
+      auto originalCallback = options.waitingCallback;
+      auto waitHandler = [=](bool succ) {
+        if (!succ)
+          return;
+        L2::Addr dstMAC;
+        int rc = arp.query(hopAddr, dstMAC);
+        if (rc < 0) {
+          if (rc == E_WAIT_FOR_TRYAGAIN)
+            ERRLOG("IP routing for " IP_ADDR_FMT_STRING
+                   ": wait to try again.\n",
+                   IP_ADDR_FMT_ARGS(header.dst));
+          else
+            ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
+                   IP_ADDR_FMT_ARGS(header.dst));
+          free(packet);
+          return;
+        }
+        l2.send(packet, packetLen, dstMAC, PROTOCOL_ID, hop.device);
+        free(packet);
+        if (originalCallback)
+          originalCallback();
+      };
+      arp.addWait(hopAddr, waitHandler);
+
+    } else {
       ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
              IP_ADDR_FMT_ARGS(header.dst));
+    }
     return rc;
   }
-  return l2.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
+  return l2.send(packet, packetLen, dstMAC, PROTOCOL_ID, hop.device);
 }
 
 int IP::sendPacket(const void *data, int dataLen, const Addr &src,
@@ -264,5 +277,8 @@ int IP::setup() {
         return 0;
       },
       PROTOCOL_ID);
-  return icmp.setup();
+  int rc = 0;
+  if ((rc = icmp.setup()) != 0 || (rc = arp.setup()) != 0)
+    return rc;
+  return 0;
 }

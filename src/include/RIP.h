@@ -24,12 +24,11 @@ public:
 
   UDP &udp;
   NetworkLayer &network;
-  ARP &arp;
   NetBase &netBase;
 
   int updateCycle, expireCycle, cleanCycle;
 
-  RIP(UDP &udp_, NetworkLayer &network_, ARP &arp_, NetBase &netBase_);
+  RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_);
   RIP(const RIP &) = delete;
 
   struct Header {
@@ -58,7 +57,7 @@ public:
 
   int setEntry(const Addr &addr, const Addr &mask, const TabEntry &entry);
 
-  int match(const Addr &addr, HopInfo &res, std::function<void ()> waitingCallback) override;
+  int query(const Addr &addr, HopInfo &res) override;
 
   int sendRequest();
   int sendUpdate();

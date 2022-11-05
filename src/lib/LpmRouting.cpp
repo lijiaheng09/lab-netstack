@@ -2,10 +2,7 @@
 
 #include "LpmRouting.h"
 
-LpmRouting::LpmRouting(ARP &arp_) : arp(arp_) {}
-
-int LpmRouting::match(const Addr &addr, HopInfo &res,
-                      std::function<void()> waitingCallback) {
+int LpmRouting::query(const Addr &addr, HopInfo &res) {
   int rc = -1;
   Addr curMask = {0};
   for (auto &&e : table)
@@ -15,19 +12,6 @@ int LpmRouting::match(const Addr &addr, HopInfo &res,
       curMask = e.mask;
       rc = 0;
     }
-  if (rc == 0) {
-    Addr nextAddr = res.gateway == Addr{0} ? addr : res.gateway;
-    rc = arp.query(nextAddr, res.dstMAC);
-    if (rc == E_WAIT_FOR_TRYAGAIN && waitingCallback) {
-      arp.addWait(
-          nextAddr,
-          [waitingCallback](bool succ) {
-            if (succ)
-              waitingCallback();
-          },
-          10);
-    }
-  }
   return rc;
 }
 

@@ -12,10 +12,10 @@ constexpr int RIP::UDP_PORT = 520;
 constexpr int RIP::ADDRESS_FAMILY = 2;
 constexpr int RIP::METRIC_INF = 16;
 
-RIP::RIP(UDP &udp_, NetworkLayer &network_, ARP &arp_, NetBase &netBase_)
-    : udp(udp_), network(network_), arp(arp_), netBase(netBase_),
+RIP::RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_)
+    : udp(udp_), network(network_), netBase(netBase_),
       updateCycle(30), expireCycle(180), cleanCycle(120), updateTime(0),
-      isUp(false), matchTable(arp_), loopHandler(*this) {}
+      isUp(false), matchTable(), loopHandler(*this) {}
 
 int RIP::setup() {
   if (isUp) {
@@ -52,9 +52,8 @@ int RIP::setEntry(const Addr &addr, const Addr &mask, const TabEntry &entry) {
   return 0;
 }
 
-int RIP::match(const Addr &addr, HopInfo &res,
-               std::function<void()> waitingCallback) {
-  return matchTable.match(addr, res, waitingCallback);
+int RIP::query(const Addr &addr, HopInfo &res) {
+  return matchTable.query(addr, res);
 }
 
 int RIP::sendRequest() {

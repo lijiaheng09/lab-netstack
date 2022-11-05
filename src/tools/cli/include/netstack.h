@@ -18,7 +18,6 @@
 extern NetBase netBase;
 extern Ethernet ethernet;
 extern IP ip;
-extern ARP arp;
 extern LpmRouting staticRouting;
 extern UDP udp;
 extern RIP ripRouting;

@@ -143,7 +143,7 @@ public:
 
   int main(int argc, char **argv) override {
     INVOKE({
-      const auto &table = arp.getTable();
+      const auto &table = ip.arp.getTable();
       printf("IP Address | MAC Address | Expire Time \n");
       time_t curTime = time(nullptr);
       for (auto &&e : table) {

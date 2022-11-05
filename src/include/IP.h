@@ -12,6 +12,7 @@
 #define IP_ADDR_FMT_NUM 4
 
 class ICMP;
+class ARP;
 
 /**
  * @brief The IP network service built above `Ethernet` (may be substituted by
@@ -66,6 +67,7 @@ public:
 
   L2 &l2;
   ICMP &icmp;
+  ARP &arp;
 
   IP(L2 &l2_);
   IP(const IP &) = delete;
@@ -123,22 +125,18 @@ public:
     using Addr = L3::Addr;
 
     struct HopInfo {
-      Addr gateway;
+      Addr gateway;       // The IP address of the next hop.
       L2::Device *device; // The port to the next hop.
-      L2::Addr dstMAC;    // The destination MAC address of the next hop.
     };
 
     /**
-     * @brief Match for the next hop port for an IP packet.
+     * @brief Query for the next hop to the destination.
      *
-     * @param addr The destination IP address of the packet.
-     * @param res To be filled with the port and destination MAC address for the
-     * next hop.
+     * @param dst The destination IP address.
+     * @param res To be filled with the gateway and device for the next hop.
      * @return 0 on success, negative on error.
-     * Including: E_WAIT_FOR_TRYAGAIN.
      */
-    virtual int match(const Addr &addr, HopInfo &res,
-                      std::function<void()> waitingCallback = 0) = 0;
+    virtual int query(const Addr &dst, HopInfo &res) = 0;
   };
 
   /**

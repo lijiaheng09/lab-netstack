@@ -42,7 +42,7 @@ public:
   L2 &l2;
   L3 &l3;
 
-  ARP(L2 &linkLayer_, L3 &network_);
+  ARP(L2 &l2_, L3 &l3_);
   ARP(const ARP &) = delete;
 
   /**

@@ -2,23 +2,17 @@
 #define NETSTACK_LPM_ROUTING_H
 
 #include "IP.h"
-#include "ARP.h"
 
 /**
  * @brief The Longest Prefix Match (LPM) routing table.
  */
 class LpmRouting : public IP::Routing {
 public:
-  ARP &arp;
-
-  LpmRouting(ARP &arp_);
-
-  int match(const Addr &addr, HopInfo &res,
-            std::function<void()> waitingCallback) override;
+  int query(const Addr &addr, HopInfo &res) override;
 
   struct Entry {
-    Addr addr;                 // The address to be matched.
-    Addr mask;                 // The prefix mask (required to be a prefix).
+    Addr addr;          // The address to be matched.
+    Addr mask;          // The prefix mask (required to be a prefix).
     L2::Device *device; // The port to the next hop.
     Addr gateway; // The destination IP address of the next hop, 0 for local.
   };

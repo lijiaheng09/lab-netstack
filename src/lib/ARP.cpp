@@ -4,7 +4,7 @@
 
 #include "log.h"
 
-ARP::ARP(L2 &linkLayer_, L3 &network_) : l2(linkLayer_), l3(network_) {}
+ARP::ARP(L2 &l2_, L3 &l3_) : l2(l2_), l3(l3_) {}
 
 const HashMap<ARP::L3::Addr, ARP::TabEntry> &ARP::getTable() {
   return table;

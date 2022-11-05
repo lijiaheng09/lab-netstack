@@ -5,10 +5,9 @@
 NetBase netBase;
 Ethernet ethernet(netBase);
 IP ip(ethernet);
-ARP arp(ethernet, ip);
-LpmRouting staticRouting(arp);
+LpmRouting staticRouting;
 UDP udp(ip);
-RIP ripRouting(udp, ip, arp, netBase);
+RIP ripRouting(udp, ip, netBase);
 
 IPForward ipForward(ip);
 
@@ -46,8 +45,7 @@ int initNetStack() {
   int rc;
 
   if ((rc = netBase.setup()) != 0 || (rc = ethernet.setup()) != 0 ||
-      (rc = ip.setup()) != 0 || (rc = arp.setup()) != 0 ||
-      (rc = udp.setup()) != 0) {
+      (rc = ip.setup()) != 0 || (rc = udp.setup()) != 0) {
     return rc;
   }
 
