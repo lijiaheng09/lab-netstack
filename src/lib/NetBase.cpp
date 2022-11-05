@@ -56,7 +56,7 @@ int NetBase::setup() {
   char errbuf[PCAP_ERRBUF_SIZE];
   int rc = pcap_init(PCAP_CHAR_ENC_UTF_8, errbuf);
   if (rc != 0)
-    LOG_ERR("pcap_init: %s\n", errbuf);
+    LOG_ERR("pcap_init: %s", errbuf);
   return rc;
 }
 
