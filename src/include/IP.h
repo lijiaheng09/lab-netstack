@@ -193,10 +193,10 @@ public:
                  const Addr &dst, int protocol, SendOptions options = {});
 
   struct RecvInfo {
-    L2::RecvInfo l2;
-    const Header *header;
-    bool isBroadcast;
-    L2::Device *endDevice;
+    L2::RecvInfo l2;       // The L2 `RecvInfo`
+    const Header *header;  // The IP Header
+    bool isBroadcast;      // Is the destination a broadcast IP
+    L2::Device *endDevice; // The device corresponding to the destination IP
   };
 
   /**
@@ -233,7 +233,7 @@ private:
   Vector<DevAddr> addrs;
   Routing *routing;
   List<RecvHandler> onRecvPromiscuous;
-  HashMultMap<uint8_t, RecvHandler> onRecv;
+  HashMultiMap<uint8_t, RecvHandler> onRecv;
 
   void handleRecv(const void *packet, size_t packetCapLen,
                   const L2::RecvInfo &info);

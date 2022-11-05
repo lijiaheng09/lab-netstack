@@ -88,7 +88,7 @@ public:
   int setup();
 
 private:
-  HashMultMap<uint16_t, RecvHandler> onRecv;
+  HashMultiMap<uint16_t, RecvHandler> onRecv;
 
   void handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info);
 };

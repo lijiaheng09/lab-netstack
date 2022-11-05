@@ -24,7 +24,10 @@ public:
 };
 
 template <typename K, typename V>
-using HashMultMap = std::unordered_multimap<K, V, Hash<K>>;
+using HashMap = std::unordered_map<K, V, Hash<K>>;
+
+template <typename K, typename V>
+using HashMultiMap = std::unordered_multimap<K, V, Hash<K>>;
 
 /**
  * @brief Calculate the 16-bit Internet checksum.

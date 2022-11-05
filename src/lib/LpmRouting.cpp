@@ -17,7 +17,16 @@ int LpmRouting::match(const Addr &addr, HopInfo &res,
     }
   if (rc == 0) {
     Addr nextAddr = res.gateway == Addr{0} ? addr : res.gateway;
-    rc = arp.match(nextAddr, res.dstMAC, waitingCallback);
+    rc = arp.query(nextAddr, res.dstMAC);
+    if (rc == E_WAIT_FOR_TRYAGAIN && waitingCallback) {
+      arp.addWait(
+          nextAddr,
+          [waitingCallback](bool succ) {
+            if (succ)
+              waitingCallback();
+          },
+          10);
+    }
   }
   return rc;
 }

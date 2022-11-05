@@ -77,9 +77,9 @@ public:
            Device *dev);
 
   struct RecvInfo {
-    timeval timestamp;
-    Device *device;
-    const Header *header;
+    timeval timestamp;    // The frame timestamp
+    Device *device;       // The receiving Ethernet device
+    const Header *header; // The Ethernet header
   };
 
   /**
@@ -110,7 +110,7 @@ public:
   int setup();
 
 private:
-  HashMultMap<uint16_t, RecvHandler> onRecv;
+  HashMultiMap<uint16_t, RecvHandler> onRecv;
 
   void handleRecv(const void *frame, size_t frameLen,
                   const NetBase::RecvInfo &info);

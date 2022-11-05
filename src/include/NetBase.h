@@ -54,8 +54,8 @@ public:
   int send(const void *buf, size_t len, Device *dev);
 
   struct RecvInfo {
-    Device *device;
-    timeval timestamp;
+    Device *device;    // The receiving device.
+    timeval timestamp; // The frame timestamp.
   };
 
   /**
@@ -111,7 +111,7 @@ public:
 
 private:
   Vector<Device *> devices;
-  HashMultMap<int, RecvHandler> onRecv;
+  HashMultiMap<int, RecvHandler> onRecv;
   Vector<LoopCallback *> loopCallbacks;
 };
 
