@@ -17,22 +17,12 @@ public:
     struct pcap *p;
 
   public:
-    int id;             // The added ID of the device, assigned from 0.
     char *const name;   // Name of the device
     const int linkType; // Type of its link layer.
 
     Device(struct pcap *p_, const char *name_, int linkType_);
     Device(const Device &) = delete;
     virtual ~Device();
-
-    /**
-     * @brief Send a frame through the device.
-     *
-     * @param buf Pointer to the frame.
-     * @param len Length of the frame.
-     * @return 0 on success, negative on error.
-     */
-    int sendFrame(const void *buf, int len);
 
     friend class NetBase;
   };
@@ -41,9 +31,8 @@ public:
    * @brief Add a device to the netstack.
    *
    * @param device Pointer to the `Device` object.
-   * @return Non-negative ID of the added device.
    */
-  int addDevice(Device *device);
+  void addDevice(Device *device);
 
   /**
    * @brief Find an added device by its name.
@@ -52,6 +41,16 @@ public:
    * @return Pointer to the `Device` object, `nullptr` if not found.
    */
   Device *findDeviceByName(const char *name);
+
+  /**
+   * @brief Send a frame through the device.
+   *
+   * @param buf Pointer to the frame.
+   * @param len Length of the frame.
+   * @param dev The device.
+   * @return 0 on success, negative on error.
+   */
+  int send(const void *buf, size_t len, Device *dev);
 
   class RecvCallback {
   public:

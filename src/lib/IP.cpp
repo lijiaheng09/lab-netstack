@@ -101,8 +101,8 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
   for (auto &&e : addrs)
     if (header.dst == Addr::BROADCAST || header.dst == (e.addr | ~e.mask)) {
       isBroadcast = true;
-      if (e.device->sendFrame(packet, packetLen, LinkLayer::Addr::BROADCAST,
-                              PROTOCOL_ID) != 0) {
+      if (linkLayer.send(packet, packetLen, LinkLayer::Addr::BROADCAST,
+                         PROTOCOL_ID, e.device) != 0) {
         rc = -1;
       }
     }
@@ -130,7 +130,7 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
         free(packet);
         return;
       }
-      hop.device->sendFrame(packet, packetLen, hop.dstMAC, PROTOCOL_ID);
+      linkLayer.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
       free(packet);
       if (originalCallback)
         originalCallback();
@@ -147,7 +147,7 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
              IP_ADDR_FMT_ARGS(header.dst));
     return rc;
   }
-  return hop.device->sendFrame(packet, packetLen, hop.dstMAC, PROTOCOL_ID);
+  return linkLayer.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
 }
 
 int IP::sendPacket(const void *data, int dataLen, const Addr &src,

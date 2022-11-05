@@ -46,18 +46,6 @@ public:
 
   public:
     const Addr addr; // Ethernet (MAC) address of the device.
-
-    /**
-     * @brief Send a frame through the Ethernet device.
-     *
-     * @param data Pointer to the payload.
-     * @param dataLen Length of the payload.
-     * @param dst Ethernet address of the destination.
-     * @param etherType The `etherType` field.
-     * @return 0 on success, negative on error.
-     */
-    int sendFrame(const void *data, int dataLen, const Addr &dst,
-                  int etherType);
   };
 
   /**
@@ -75,6 +63,18 @@ public:
    * @return Pointer to the `Ethernet::Device` object, nullptr if not found.
    */
   Device *findDeviceByName(const char *name);
+
+  /**
+   * @brief Send a frame through the device.
+   *
+   * @param data Pointer to the payload.
+   * @param dataLen Length of the payload.
+   * @param dst Destination address.
+   * @param etherType
+   * @param dev The device.
+   * @return 0 on success, negative on error.
+   */
+  int send(const void *data, size_t dataLen, Addr dst, uint16_t etherType, Device *dev);
 
   class RecvCallback {
   public:

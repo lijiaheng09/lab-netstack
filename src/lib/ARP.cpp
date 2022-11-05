@@ -25,8 +25,8 @@ int ARP::sendRequest(NetworkLayer::Addr target) {
       tha : {0},
       tpa : target
     };
-    int rc1 = e.device->sendFrame(&header, sizeof(Header),
-                                  Ethernet::Addr::BROADCAST, PROTOCOL_ID);
+    int rc1 = linkLayer.send(&header, sizeof(Header), Ethernet::Addr::BROADCAST,
+                             PROTOCOL_ID, e.device);
     if (rc1 < 0)
       rc = rc1;
   }
@@ -87,8 +87,8 @@ int ARP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
           replyHeader.tpa = header.spa;
           replyHeader.spa = e.addr;
           replyHeader.sha = info.linkDevice->addr;
-          if (info.linkDevice->sendFrame(&replyHeader, sizeof(Header),
-                                         header.sha, PROTOCOL_ID) < 0) {
+          if (arp.linkLayer.send(&replyHeader, sizeof(Header), header.sha,
+                                 PROTOCOL_ID, info.linkDevice) < 0) {
             rc = -1;
           }
         };

@@ -1,5 +1,6 @@
 #include <cstring>
 #include <cstdlib>
+#include <climits>
 
 #include <pcap/pcap.h>
 
@@ -8,24 +9,15 @@
 #include "NetBase.h"
 
 NetBase::Device::Device(pcap_t *p_, const char *name_, int linkType_)
-    : p(p_), id(-1), name(strdup(name_)), linkType(linkType_) {}
+    : p(p_), name(strdup(name_)), linkType(linkType_) {}
 
 NetBase::Device::~Device() {
   pcap_close(p);
   free(name);
 }
 
-int NetBase::Device::sendFrame(const void *buf, int len) {
-  int rc = pcap_sendpacket(p, (u_char *)buf, len);
-  if (rc != 0)
-    ERRLOG("pcap_sendpacket(device %s) error: %s\n", name, pcap_geterr(p));
-  return rc;
-}
-
-int NetBase::addDevice(Device *device) {
-  device->id = (int)devices.size();
+void NetBase::addDevice(Device *device) {
   devices.push_back(device);
-  return device->id;
 }
 
 NetBase::Device *NetBase::findDeviceByName(const char *name) {
@@ -33,6 +25,17 @@ NetBase::Device *NetBase::findDeviceByName(const char *name) {
     if (strcmp(d->name, name) == 0)
       return d;
   return nullptr;
+}
+
+int NetBase::send(const void *buf, size_t len, Device *dev) {
+  if (len > INT_MAX) {
+    LOG_ERR("Frame length too large: %lu", len);
+    return -1;
+  }
+  int rc = pcap_sendpacket(dev->p, (const u_char *)buf, (int)len);
+  if (rc != 0)
+    LOG_ERR_PCAP(dev->p, "pcap_sendpacket(%s)", dev->name);
+  return rc;
 }
 
 NetBase::RecvCallback::RecvCallback(int linkType_) : linkType(linkType_) {}

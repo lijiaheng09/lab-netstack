@@ -41,7 +41,7 @@ public:
     memset(data + rLen, 0, padding);
 
     int rc;
-    INVOKE({ rc = d->sendFrame(data, len, dstMAC, etherType); })
+    INVOKE({ rc = ethernet.send(data, len, dstMAC, etherType, d); })
 
     free(data);
     if (rc != 0) {

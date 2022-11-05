@@ -22,34 +22,6 @@ Ethernet::Ethernet(NetBase &netBase_)
 Ethernet::Device::Device(pcap_t *p_, const char *name_, const Addr &addr_)
     : NetBase::Device(p_, name_, LINK_TYPE), addr(addr_) {}
 
-int Ethernet::Device::sendFrame(const void *data, int dataLen, const Addr &dst,
-                                int etherType) {
-  int frameLen = sizeof(Header) + dataLen;
-
-  if (dataLen < 0) {
-    ERRLOG("Invalid Ethernet payload length: %d\n", dataLen);
-    return -1;
-  }
-  if ((etherType >> 16) != 0) {
-    ERRLOG("Invalid etherType: 0x%X\n", etherType);
-    return -1;
-  }
-
-  void *frame = malloc(frameLen);
-  if (!frame) {
-    ERRLOG("malloc error: %s\n", strerror(errno));
-    return -1;
-  }
-
-  Header &header = *(Header *)frame;
-  header = Header{dst : dst, src : addr, etherType : htons(etherType)};
-  memcpy(&header + 1, data, dataLen);
-
-  int rc = NetBase::Device::sendFrame(frame, frameLen);
-  free(frame);
-  return rc;
-}
-
 Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
   if (netBase.findDeviceByName(name)) {
     ERRLOG("Duplicated device: %s\n", name);
@@ -128,6 +100,29 @@ CLOSE:
 
 Ethernet::Device *Ethernet::findDeviceByName(const char *name) {
   return dynamic_cast<Device *>(netBase.findDeviceByName(name));
+}
+
+int Ethernet::send(const void *data, size_t dataLen, Addr dst,
+                   uint16_t etherType, Device *dev) {
+  if (dataLen > SIZE_MAX - sizeof(Header)) {
+    LOG_ERR("Ethernet data length too large: %lu", dataLen);
+    return -1;
+  }
+
+  size_t frameLen = sizeof(Header) + dataLen;
+  void *frame = malloc(frameLen);
+  if (!frame) {
+    LOG_ERR_POSIX("malloc");
+    return -1;
+  }
+
+  Header &header = *(Header *)frame;
+  header = Header{.dst = dst, .src = dev->addr, .etherType = htons(etherType)};
+  memcpy(&header + 1, data, dataLen);
+
+  int rc = netBase.send(frame, frameLen, dev);
+  free(frame);
+  return rc;
 }
 
 Ethernet::RecvCallback::RecvCallback(int etherType_) : etherType(etherType_) {}

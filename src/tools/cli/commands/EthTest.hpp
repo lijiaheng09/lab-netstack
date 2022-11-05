@@ -78,8 +78,8 @@ public:
       bool start = false;
       if (memcmp(data, HELO, MSG_LEN) == 0) {
         fprintf(stderr, "device %s received HELO\n", link.device->name);
-        link.device->sendFrame(RESP, MSG_LEN, info.linkHeader->src,
-                               ETHER_TYPE_CTRL);
+        ethernet.send(RESP, MSG_LEN, info.linkHeader->src, ETHER_TYPE_CTRL,
+                      link.device);
         start = true;
       } else if (memcmp(data, RESP, MSG_LEN) == 0) {
         fprintf(stderr, "device %s received RESP\n", link.device->name);
@@ -159,8 +159,9 @@ public:
 
         while (!l->start.try_lock_for(1s)) {
           fprintf(stderr, "device %s waiting\n", l->device->name);
-          INVOKE(
-              { l->device->sendFrame(HELO, MSG_LEN, l->dst, ETHER_TYPE_CTRL); })
+          INVOKE({
+            ethernet.send(HELO, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device);
+          })
         }
 
         for (int i = 0; i < FRAMES; i++) {
@@ -170,13 +171,14 @@ public:
           LongNum v = randLongNum(rnd);
           l->sent ^= v;
           INVOKE({
-            l->device->sendFrame(&v, sizeof(LongNum), l->dst, ETHER_TYPE_DATA);
+            ethernet.send(&v, sizeof(LongNum), l->dst, ETHER_TYPE_DATA,
+                          l->device);
           })
           std::this_thread::sleep_for(1ms);
         }
 
         INVOKE(
-            { l->device->sendFrame(STOP, MSG_LEN, l->dst, ETHER_TYPE_CTRL); })
+            { ethernet.send(STOP, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device); })
 
         l->stop.lock();
       });
