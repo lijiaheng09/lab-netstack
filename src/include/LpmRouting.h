@@ -19,7 +19,7 @@ public:
   struct Entry {
     Addr addr;                 // The address to be matched.
     Addr mask;                 // The prefix mask (required to be a prefix).
-    LinkLayer::Device *device; // The port to the next hop.
+    L2::Device *device; // The port to the next hop.
     Addr gateway; // The destination IP address of the next hop, 0 for local.
   };
 

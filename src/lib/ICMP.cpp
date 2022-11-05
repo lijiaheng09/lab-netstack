@@ -11,10 +11,10 @@
 
 constexpr int ICMP::PROTOCOL_ID = 1;
 
-ICMP::ICMP(IP &ip_) : ip(ip_), ipHandler(*this) {}
+ICMP::ICMP(IP &ip_) : ip(ip_) {}
 
 int ICMP::sendTimeExceeded(const void *orig, int origLen,
-                           const IP::RecvCallback::Info &info) {
+                           const IP::RecvInfo &info) {
   const IP::Header &origHeader = *(const IP::Header *)orig;
 
   int origHdrLen = (origHeader.versionAndIHL & 0x0F) * 4;
@@ -24,7 +24,7 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
   int msgLen = sizeof(Header) + backLen;
 
   IP::Addr src;
-  int rc = ip.getAnyAddr(info.device, src);
+  int rc = ip.getAnyAddr(info.l2.device, src);
   if (rc < 0) {
     ERRLOG("No IP address on the host.\n");
     return rc;
@@ -105,17 +105,20 @@ int ICMP::removeRecvCallback(RecvCallback *callback) {
 }
 
 int ICMP::setup() {
-  ip.addRecvCallback(&ipHandler);
+  ip.addOnRecv(
+      [this](auto &&...args) -> int {
+        handleRecv(args...);
+        return 0;
+      },
+      PROTOCOL_ID);
   return 0;
 }
 
-ICMP::IPHandler::IPHandler(ICMP &icmp_)
-    : icmp(icmp_), IP::RecvCallback(false, PROTOCOL_ID) {}
-
-int ICMP::IPHandler::handle(const void *msg, int msgLen, const Info &info) {
+void ICMP::handleRecv(const void *msg, size_t msgLen,
+                      const IP::RecvInfo &info) {
   if (msgLen < sizeof(Header)) {
-    ERRLOG("Truncated ICMP message: %d/%d\n", msgLen, (int)sizeof(Header));
-    return 1;
+    LOG_INFO("Truncated ICMP message: %lu/%lu", msgLen, sizeof(Header));
+    return;
   }
   const Header &header = *(const Header *)msg;
 
@@ -140,8 +143,8 @@ int ICMP::IPHandler::handle(const void *msg, int msgLen, const Info &info) {
       assert(calcInternetChecksum16(reply, msgLen) == 0);
 #endif
 
-      rc = icmp.ip.sendPacket(reply, msgLen, info.netHeader->dst,
-                              info.netHeader->src, PROTOCOL_ID,
+      rc = ip.sendPacket(reply, msgLen, info.header->dst,
+                              info.header->src, PROTOCOL_ID,
                               {autoRetry : true});
       free(reply);
     } while (0);
@@ -152,11 +155,8 @@ int ICMP::IPHandler::handle(const void *msg, int msgLen, const Info &info) {
 
   const void *data = &header + 1;
   int dataLen = msgLen - sizeof(header);
-  for (auto *c : icmp.callbacks)
+  for (auto *c : callbacks)
     if (c->type == -1 || c->type == header.type) {
-      if (c->handle(data, dataLen, newInfo) != 0)
-        rc = -1;
+      c->handle(data, dataLen, newInfo);
     }
-
-  return rc;
 }

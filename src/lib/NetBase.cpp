@@ -74,7 +74,7 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
     return;
   }
 
-  NetBase::RecvInfo info = {.device = args.device, .timestamp = h->ts};
+  NetBase::RecvInfo info{.device = args.device, .timestamp = h->ts};
   args.netBase->handleRecv(bytes, h->len, info);
 }
 

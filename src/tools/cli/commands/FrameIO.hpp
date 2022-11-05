@@ -59,12 +59,12 @@ class CmdCaptureFrames : public Command {
     Handler() : Ethernet::RecvCallback(-1) {}
 
     int handle(const void *data, int dataLen, const Info &info) override {
-      int etherType = ntohs(info.linkHeader->etherType);
+      int etherType = ntohs(info.header->etherType);
       printf("Data length %d from device %s\n", dataLen, info.device->name);
       printf("    dst " ETHERNET_ADDR_FMT_STRING
              ", src " ETHERNET_ADDR_FMT_STRING ", ethtype 0x%04X\n",
-             ETHERNET_ADDR_FMT_ARGS(info.linkHeader->dst),
-             ETHERNET_ADDR_FMT_ARGS(info.linkHeader->src), etherType);
+             ETHERNET_ADDR_FMT_ARGS(info.header->dst),
+             ETHERNET_ADDR_FMT_ARGS(info.header->src), etherType);
 
       return 0;
     }

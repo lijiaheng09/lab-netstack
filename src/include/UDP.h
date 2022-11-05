@@ -34,7 +34,7 @@ public:
 
   struct SendOptions {
     bool autoRetry;
-    std::function<void ()> waitingCallback;
+    std::function<void()> waitingCallback;
   };
 
   /**
@@ -66,11 +66,11 @@ public:
      */
     RecvCallback(int port_);
 
-    struct Info : NetworkLayer::RecvCallback::Info {
+    struct Info : NetworkLayer::RecvInfo {
       const Header *udpHeader;
 
-      Info(const NetworkLayer::RecvCallback::Info &info_)
-          : NetworkLayer::RecvCallback::Info(info_) {}
+      Info(const NetworkLayer::RecvInfo &info_)
+          : NetworkLayer::RecvInfo(info_) {}
     };
 
     /**
@@ -110,14 +110,8 @@ public:
 private:
   Vector<RecvCallback *> callbacks;
 
-  class NetworkLayerHandler : public NetworkLayer::RecvCallback {
-    UDP &udp;
-
-  public:
-    NetworkLayerHandler(UDP &udp_);
-
-    int handle(const void *seg, int segLen, const Info &info) override;
-  } networkHandler;
+  void handleRecv(const void *seg, size_t segLen,
+                  const NetworkLayer::RecvInfo &info);
 };
 
 #endif

@@ -10,7 +10,7 @@
 #include "IPForward.h"
 #include "ICMP.h"
 
-IPForward::IPForward(IP &ip_) : ip(ip_), isUp(false), ipHandler(*this) {}
+IPForward::IPForward(IP &ip_) : ip(ip_), isUp(false) {}
 
 int IPForward::setup() {
   if (isUp) {
@@ -18,17 +18,19 @@ int IPForward::setup() {
     return 1;
   }
   isUp = true;
-  ip.addRecvCallback(&ipHandler);
+  ip.addOnRecv(
+      [this](auto &&...args) -> int {
+        handleRecv(args...);
+        return 0;
+      },
+      0, true);
   return 0;
 }
 
-IPForward::IPHandler::IPHandler(IPForward &ipForward_)
-    : IP::RecvCallback(true, -1), ipForward(ipForward_) {}
-
-int IPForward::IPHandler::handle(const void *data, int dataLen,
-                                 const Info &info) {
-  const void *packet = info.netHeader;
-  const auto &origHeader = *info.netHeader;
+void IPForward::handleRecv(const void *data, size_t dataLen,
+                           const IP::RecvInfo &info) {
+  const void *packet = info.header;
+  const auto &origHeader = *info.header;
 
   if (info.endDevice) {
     /*
@@ -36,15 +38,15 @@ int IPForward::IPHandler::handle(const void *data, int dataLen,
      * TODO: forward a direct broadcast in LAN more than 2 devices (like a
      * normal "router"), which is not the case we are facing now.
      */
-    return 0;
+    return;
   }
 
   int procTime = 1;
 
   timeval cur;
   if (gettimeofday(&cur, nullptr) == 0) {
-    procTime = cur.tv_sec - info.timestamp.tv_sec;
-    if (cur.tv_usec >= info.timestamp.tv_usec)
+    procTime = cur.tv_sec - info.l2.timestamp.tv_sec;
+    if (cur.tv_usec >= info.l2.timestamp.tv_usec)
       procTime++;
   }
 
@@ -53,22 +55,20 @@ int IPForward::IPHandler::handle(const void *data, int dataLen,
   // Assuming the forwarding time much less than 1s.
   if (origHeader.timeToLive <= procTime) {
     // drop.
-    ipForward.ip.icmp.sendTimeExceeded(&origHeader, packetLen, info);
-    return 0;
+    ip.icmp.sendTimeExceeded(&origHeader, packetLen, info);
+    return;
   }
 
   void *newBuf = malloc(packetLen);
   if (!newBuf) {
-    ERRLOG("malloc error: %s\n", strerror(errno));
-    return -1;
+    LOG_ERR_POSIX("malloc");
+    return;
   }
 
   memcpy(newBuf, packet, packetLen);
   auto &newHeader = *(IP::Header *)newBuf;
   newHeader.timeToLive -= procTime;
 
-  int rc =
-      ipForward.ip.sendPacketWithHeader(newBuf, packetLen, {autoRetry : true});
+  int rc = ip.sendPacketWithHeader(newBuf, packetLen, {autoRetry : true});
   // free(newBuf);
-  return rc;
 }

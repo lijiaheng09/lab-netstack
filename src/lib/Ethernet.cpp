@@ -143,7 +143,7 @@ void Ethernet::handleRecv(const void *frame, size_t frameLen,
   const void *data = &header + 1;
   size_t dataLen = frameLen - sizeof(Header);
   Ethernet::RecvInfo newInfo{
-      .timestamp = info.timestamp, .device = device, .linkHeader = &header};
+      .timestamp = info.timestamp, .device = device, .header = &header};
 
   auto r = onRecv.equal_range(ntohs(header.etherType));
   for (auto it = r.first; it != r.second;) {

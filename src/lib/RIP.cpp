@@ -62,7 +62,7 @@ int RIP::sendRequest() {
   Header header = {command : 1, version : 0, zero : 0};
 
   return udp.sendSegment(&header, sizeof(Header), srcAddr, UDP_PORT,
-                         NetworkLayer::Addr::BROADCAST, UDP_PORT);
+                         NetworkLayer::BROADCAST, UDP_PORT);
 }
 
 int RIP::sendUpdate() {
@@ -110,7 +110,7 @@ int RIP::sendUpdate() {
   }
 
   int rc = udp.sendSegment(buf, dataLen, srcAddr, UDP_PORT,
-                           NetworkLayer::Addr::BROADCAST, UDP_PORT);
+                           NetworkLayer::BROADCAST, UDP_PORT);
   free(buf);
   return rc;
 }
@@ -164,7 +164,7 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
       realUpdated = true;
     } else {
       auto &&r = rip.table[{e.address, e.mask}];
-      if ((r.metric != 0 && r.gateway == info.netHeader->src) ||
+      if ((r.metric != 0 && r.gateway == info.header->src) ||
           metric < r.metric) {
         updateEnt = true;
         if (metric != r.metric)
@@ -174,8 +174,8 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
 
     if (updateEnt) {
       rip.table[{e.address, e.mask}] = TabEntry{
-        device : info.device,
-        gateway : info.netHeader->src,
+        device : info.l2.device,
+        gateway : info.header->src,
         metric : metric,
         expireTime : curTime + rip.expireCycle
       };
@@ -183,8 +183,8 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
         rip.matchTable.setEntry({
           addr : e.address,
           mask : e.mask,
-          device : info.device,
-          gateway : info.netHeader->src,
+          device : info.l2.device,
+          gateway : info.header->src,
         });
       } else {
         rip.matchTable.delEntry(e.address, e.mask);

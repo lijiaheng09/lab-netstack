@@ -12,18 +12,15 @@
 #include "IP.h"
 #include "ICMP.h"
 
-constexpr int IP::PROTOCOL_ID = ETHERTYPE_IP;
-constexpr IP::Addr IP::Addr::BROADCAST{255, 255, 255, 255};
-constexpr IP::Addr IP::Addr::MASK_HOST{255, 255, 255, 255};
+constexpr IP::Addr IP::BROADCAST;
 
-IP::IP(LinkLayer &linkLayer_)
-    : linkLayer(linkLayer_), routing(nullptr), icmp(*(new ICMP(*this))) {}
+IP::IP(L2 &l2_) : l2(l2_), routing(nullptr), icmp(*(new ICMP(*this))) {}
 
 IP::~IP() {
   delete &icmp;
 }
 
-void IP::addAddr(const DevAddr &entry) {
+void IP::addAddr(DevAddr entry) {
   addrs.push_back(entry);
 }
 
@@ -31,7 +28,7 @@ const Vector<IP::DevAddr> &IP::getAddrs() {
   return addrs;
 }
 
-int IP::getAnyAddr(LinkLayer::Device *device, Addr &addr) {
+int IP::getAnyAddr(L2::Device *device, Addr &addr) {
   if (addrs.empty())
     return -1;
   for (auto &&e : addrs)
@@ -61,7 +58,7 @@ int IP::getSrcAddr(Addr dst, Addr &res) {
   return 0;
 }
 
-IP::LinkLayer::Device *IP::findDeviceByAddr(const Addr &addr) {
+IP::L2::Device *IP::findDeviceByAddr(Addr addr) {
   for (auto &&a : addrs)
     if (a.addr == addr)
       return a.device;
@@ -98,10 +95,10 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
   int rc = 0;
   bool isBroadcast = false;
   for (auto &&e : addrs)
-    if (header.dst == Addr::BROADCAST || header.dst == (e.addr | ~e.mask)) {
+    if (header.dst == BROADCAST || header.dst == (e.addr | ~e.mask)) {
       isBroadcast = true;
-      if (linkLayer.send(packet, packetLen, LinkLayer::BROADCAST, PROTOCOL_ID,
-                         e.device) != 0) {
+      if (l2.send(packet, packetLen, L2::BROADCAST, PROTOCOL_ID, e.device) !=
+          0) {
         rc = -1;
       }
     }
@@ -129,7 +126,7 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
         free(packet);
         return;
       }
-      linkLayer.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
+      l2.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
       free(packet);
       if (originalCallback)
         originalCallback();
@@ -146,7 +143,7 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
              IP_ADDR_FMT_ARGS(header.dst));
     return rc;
   }
-  return linkLayer.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
+  return l2.send(packet, packetLen, hop.dstMAC, PROTOCOL_ID, hop.device);
 }
 
 int IP::sendPacket(const void *data, int dataLen, const Addr &src,
@@ -194,38 +191,35 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
   return rc;
 }
 
-IP::RecvCallback::RecvCallback(bool promiscuous_, int protocol_)
-    : promiscuous(promiscuous_), protocol(protocol_) {}
-
-void IP::addRecvCallback(RecvCallback *callback) {
-  callbacks.push_back(callback);
+void IP::addOnRecv(RecvHandler handler, uint8_t protocol, bool promiscuous) {
+  if (promiscuous)
+    onRecvPromiscuous.push_back(handler);
+  else
+    onRecv.insert({protocol, handler});
 }
 
 void IP::handleRecv(const void *packet, size_t packetCapLen,
-                    const LinkLayer::RecvInfo &info) {
+                    const L2::RecvInfo &info) {
   if (packetCapLen < sizeof(Header)) {
-    ERRLOG("Truncated IP header: %lu/%lu\n", packetCapLen, sizeof(Header));
+    LOG_INFO("Truncated IP header: %lu/%lu", packetCapLen, sizeof(Header));
     return;
   }
   const Header &header = *(const Header *)packet;
   size_t hdrLen = (header.versionAndIHL & 0x0f) * 4;
   size_t packetLen = ntohs(header.totalLength);
   if (packetCapLen < packetLen || packetLen < hdrLen) {
-    ERRLOG("Truncated IP packet: %lu/%lu:%lu\n", packetCapLen, hdrLen,
-           packetLen);
+    LOG_INFO("Truncated IP packet: %lu/%lu:%lu", packetCapLen, hdrLen,
+             packetLen);
     return;
   }
   if (calcInternetChecksum16(&header, hdrLen) != 0) {
-    ERRLOG("IP Checksum error\n");
+    LOG_INFO("IP Checksum error\n");
     return;
   }
 
-  IP::RecvCallback::Info newInfo(info);
-
-  LinkLayer::Device *endDevice = nullptr;
+  L2::Device *endDevice = nullptr;
   bool isBroadcast = false;
-
-  if (header.dst == Addr::BROADCAST) {
+  if (header.dst == BROADCAST) {
     endDevice = info.device;
     isBroadcast = true;
   } else {
@@ -236,29 +230,35 @@ void IP::handleRecv(const void *packet, size_t packetCapLen,
         break;
       }
   }
-
   if (!isBroadcast)
     endDevice = findDeviceByAddr(header.dst);
-  newInfo.netHeader = &header;
-  newInfo.isBroadcast = isBroadcast;
-  newInfo.endDevice = endDevice;
+  IP::RecvInfo newInfo{.l2 = info,
+                       .header = &header,
+                       .isBroadcast = isBroadcast,
+                       .endDevice = endDevice};
+  const void *data = (const char *)packet + hdrLen;
+  size_t dataLen = packetLen - hdrLen;
 
-  const void *data = (const unsigned char *)packet + hdrLen;
-  int dataLen = packetLen - hdrLen;
+  for (auto it = onRecvPromiscuous.begin(); it != onRecvPromiscuous.end();) {
+    if ((*it)(data, dataLen, newInfo) == 1)
+      it = onRecvPromiscuous.erase(it);
+    else
+      it++;
+  }
 
-  int protocol = header.protocol;
-  int rc = 0;
-  for (auto *c : callbacks)
-    if (c->promiscuous || endDevice) {
-      if (c->protocol == -1 || c->protocol == protocol) {
-        if (c->handle(data, dataLen, newInfo) != 0)
-          rc = -1;
-      }
+  if (endDevice) {
+    auto r = onRecv.equal_range(header.protocol);
+    for (auto it = r.first; it != r.second;) {
+      if (it->second(data, dataLen, newInfo) == 1)
+        it = onRecv.erase(it);
+      else
+        it++;
     }
+  }
 }
 
 int IP::setup() {
-  linkLayer.addOnRecv(
+  l2.addOnRecv(
       [this](auto &&...args) -> int {
         handleRecv(args...);
         return 0;

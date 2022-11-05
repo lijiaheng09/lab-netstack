@@ -22,8 +22,9 @@ class ICMP;
  */
 class IP {
 public:
-  using LinkLayer = Ethernet;   // may be substituted by other link layers
-  static const int PROTOCOL_ID; // The corresponding etherType
+  using L2 = Ethernet; // may be substituted by other link layers
+
+  static constexpr uint16_t PROTOCOL_ID = 0x0800; // The corresponding etherType
 
   struct Addr {
     union {
@@ -32,24 +33,23 @@ public:
     };
 
     Addr operator~() const {
-      return {num : ~num};
+      return {.num = ~num};
     }
-    friend bool operator==(const Addr &a, const Addr &b) {
+    friend bool operator==(Addr a, Addr b) {
       return a.num == b.num;
     }
-    friend bool operator!=(const Addr &a, const Addr &b) {
+    friend bool operator!=(Addr a, Addr b) {
       return a.num != b.num;
     }
-    friend Addr operator&(const Addr &a, const Addr &b) {
-      return {num : a.num & b.num};
+    friend Addr operator&(Addr a, Addr b) {
+      return {.num = a.num & b.num};
     }
-    friend Addr operator|(const Addr &a, const Addr &b) {
-      return {num : a.num | b.num};
+    friend Addr operator|(Addr a, Addr b) {
+      return {.num = a.num | b.num};
     }
+  } __attribute__((packed));
 
-    static const Addr BROADCAST;
-    static const Addr MASK_HOST;
-  };
+  static constexpr Addr BROADCAST{255, 255, 255, 255};
 
   struct Header {
     uint8_t versionAndIHL; // version:4 | IHL:4
@@ -62,21 +62,19 @@ public:
     uint16_t headerChecksum;
     Addr src;
     Addr dst;
-  };
+  } __attribute__((packed));
 
-  LinkLayer &linkLayer;
-
+  L2 &l2;
   ICMP &icmp;
 
-  IP(LinkLayer &linkLayer_);
+  IP(L2 &l2_);
   IP(const IP &) = delete;
   ~IP();
 
-  class DevAddr {
-  public:
-    LinkLayer::Device *device; // The corresponding link layer device.
-    Addr addr;                 // The IP address
-    Addr mask;                 // The subnet mask
+  struct DevAddr {
+    L2::Device *device; // The corresponding link layer device.
+    Addr addr;          // The IP address
+    Addr mask;          // The subnet mask
   };
 
   /**
@@ -84,7 +82,7 @@ public:
    *
    * @param entry The address entry to be added.
    */
-  void addAddr(const DevAddr &entry);
+  void addAddr(DevAddr entry);
 
   /**
    * @brief Get all assigned IP addresses.
@@ -103,7 +101,7 @@ public:
    * @return 0 on success, 1 if got address of other device, -1 if no address
    * at all.
    */
-  int getAnyAddr(LinkLayer::Device *device, Addr &addr);
+  int getAnyAddr(L2::Device *device, Addr &addr);
 
   int getSrcAddr(Addr dst, Addr &res);
 
@@ -113,21 +111,21 @@ public:
    * @param addr The assigned IP address.
    * @return The link layer device found, `nullptr` if not found.
    */
-  LinkLayer::Device *findDeviceByAddr(const Addr &addr);
+  L2::Device *findDeviceByAddr(Addr addr);
 
   /**
    * @brief Implementation of the IP routing policy.
    */
   class Routing {
   public:
-    using NetworkLayer = IP;
-    using LinkLayer = NetworkLayer::LinkLayer;
-    using Addr = NetworkLayer::Addr;
+    using L3 = IP;
+    using L2 = L3::L2;
+    using Addr = L3::Addr;
 
     struct HopInfo {
       Addr gateway;
-      LinkLayer::Device *device; // The port to the next hop.
-      LinkLayer::Addr dstMAC;    // The destination MAC address of the next hop.
+      L2::Device *device; // The port to the next hop.
+      L2::Addr dstMAC;    // The destination MAC address of the next hop.
     };
 
     /**
@@ -194,55 +192,35 @@ public:
   int sendPacket(const void *data, int dataLen, const Addr &src,
                  const Addr &dst, int protocol, SendOptions options = {});
 
-  class RecvCallback {
-  public:
-    bool promiscuous; // If matches destination IP of other hosts.
-    int protocol;     // The matching IP `protocol` field, -1 for any.
-
-    /**
-     * @brief Construct a new RecvCallback object
-     *
-     * @param promiscuous_ If matches destination IP of other hosts.
-     * @param protocol_ The matching IP `protocol` field, -1 for any.
-     */
-    RecvCallback(bool promiscuous_, int protocol_);
-
-    struct Info : LinkLayer::RecvInfo {
-      const Header *netHeader;
-      bool isBroadcast;
-      LinkLayer::Device *endDevice;
-
-      Info(const LinkLayer::RecvInfo &info_) : LinkLayer::RecvInfo(info_) {}
-    };
-
-    /**
-     * @brief Handle a received IP packet (guaranteed valid).
-     *
-     * @param data Pointer to the payload.
-     * @param dataLen Length of the payload.
-     * @param info Other information of the received packet.
-     * @return 0 on success, negative on error.
-     */
-    virtual int handle(const void *data, int dataLen, const Info &info) = 0;
+  struct RecvInfo {
+    L2::RecvInfo l2;
+    const Header *header;
+    bool isBroadcast;
+    L2::Device *endDevice;
   };
 
   /**
-   * @brief Register a callback on receiving IP packets.
+   * @brief Handle a receiving IP packet.
    *
-   * @param callback Pointer to a `RecvCallback` object (which need to be
-   * persistent).
+   * @param data Pointer to the payload.
+   * @param dataLen Length of the payload.
+   * @param info Other information.
+   *
+   * @return 0 on normal, 1 to remove the handler.
    */
-  void addRecvCallback(RecvCallback *callback);
+  using RecvHandler = std::function<int(const void *data, size_t dataLen,
+                                        const RecvInfo &info)>;
 
   /**
-   * @brief Handle a receiving packet from the Link-Layer.
+   * @brief Add a handler for receiving packets.
    *
-   * @param frame Pointer to the packet.
-   * @param frameLen Length of the packet.
-   * @param info Other information.
+   * @param handler The handler.
+   * @param protocol The matched `protocol` field.
+   * @param promiscuous If matches destination IP of other hosts, ignoring
+   * `protocol`.
    */
-  void handleRecv(const void *packet, size_t packetCapLen,
-                  const LinkLayer::RecvInfo &info);
+  void addOnRecv(RecvHandler handler, uint8_t protocol,
+                 bool promiscuous = false);
 
   /**
    * @brief Setup the IP network service.
@@ -254,8 +232,11 @@ public:
 private:
   Vector<DevAddr> addrs;
   Routing *routing;
+  List<RecvHandler> onRecvPromiscuous;
+  HashMultMap<uint8_t, RecvHandler> onRecv;
 
-  Vector<RecvCallback *> callbacks;
+  void handleRecv(const void *packet, size_t packetCapLen,
+                  const L2::RecvInfo &info);
 };
 
 #endif

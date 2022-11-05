@@ -77,7 +77,7 @@ public:
       bool start = false;
       if (memcmp(data, HELO, MSG_LEN) == 0) {
         fprintf(stderr, "device %s received HELO\n", link.device->name);
-        ethernet.send(RESP, MSG_LEN, info.linkHeader->src, ETHER_TYPE_CTRL,
+        ethernet.send(RESP, MSG_LEN, info.header->src, ETHER_TYPE_CTRL,
                       link.device);
         start = true;
       } else if (memcmp(data, RESP, MSG_LEN) == 0) {
@@ -89,7 +89,7 @@ public:
       }
 
       if (start && !link.start.try_lock()) {
-        link.dst = info.linkHeader->src;
+        link.dst = info.header->src;
         link.start.unlock();
       }
 

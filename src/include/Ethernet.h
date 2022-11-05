@@ -78,16 +78,15 @@ public:
 
   struct RecvInfo {
     timeval timestamp;
-
     Device *device;
-    const Header *linkHeader;
+    const Header *header;
   };
 
   /**
    * @brief Handle a receiving Ethernet frame.
    *
-   * @param buf Pointer to the payload.
-   * @param len Length of the payload.
+   * @param data Pointer to the payload.
+   * @param dataLen Length of the payload.
    * @param info Other information.
    *
    * @return 0 on normal, 1 to remove the handler.
@@ -104,16 +103,6 @@ public:
   void addOnRecv(RecvHandler handler, uint16_t etherType);
 
   /**
-   * @brief Handle a receiving frame from `NetBase`.
-   *
-   * @param frame Pointer to the frame.
-   * @param frameLen Length of the frame.
-   * @param info Other information.
-   */
-  void handleRecv(const void *frame, size_t frameLen,
-                  const NetBase::RecvInfo &info);
-
-  /**
    * @brief Setup the Ethernet link layer service.
    *
    * @return 0 on success, negative on error.
@@ -122,6 +111,9 @@ public:
 
 private:
   HashMultMap<uint16_t, RecvHandler> onRecv;
+
+  void handleRecv(const void *frame, size_t frameLen,
+                  const NetBase::RecvInfo &info);
 };
 
 #endif

@@ -30,8 +30,7 @@ public:
    *
    * @return 0 on success, negative on error.
    */
-  int sendTimeExceeded(const void *orig, int origLen,
-                       const IP::RecvCallback::Info &info);
+  int sendTimeExceeded(const void *orig, int origLen, const IP::RecvInfo &info);
 
   /**
    * @brief Send Echo or Reply Message.
@@ -44,7 +43,7 @@ public:
    * @param data Pointer to the data.
    * @param dataLen Length of the data.
    * @param timeToLive The `time to live` field for IP transmission.
-   * 
+   *
    * @return 0 on success, negative on error.
    */
   int sendEchoOrReply(const IP::Addr &src, const IP::Addr &dst, int type,
@@ -55,11 +54,11 @@ public:
   public:
     int type; // The matching `type` field, -1 for any;
 
-    struct Info : IP::RecvCallback::Info {
+    struct Info : IP::RecvInfo {
       const Header *icmpHeader;
 
-      Info(const IP::RecvCallback::Info &info_)
-          : IP::RecvCallback::Info(info_) {}
+      Info(const IP::RecvInfo &info_)
+          : IP::RecvInfo(info_) {}
     };
 
     RecvCallback(int type_);
@@ -75,14 +74,7 @@ public:
 private:
   Vector<RecvCallback *> callbacks;
 
-  class IPHandler : public IP::RecvCallback {
-    ICMP &icmp;
-
-  public:
-    IPHandler(ICMP &icmp_);
-
-    int handle(const void *msg, int msgLen, const Info &info) override;
-  } ipHandler;
+  void handleRecv(const void *msg, size_t msgLen, const IP::RecvInfo &info);
 };
 
 #endif

@@ -25,8 +25,8 @@ public:
         int seq = ntohs(info.icmpHeader->seqNumber);
         printf("%d bytes from " IP_ADDR_FMT_STRING ": icmp_seq=%d ttl=%d\n",
                dataLen + (int)sizeof(ICMP::Header),
-               IP_ADDR_FMT_ARGS(info.netHeader->src), seq,
-               info.netHeader->timeToLive);
+               IP_ADDR_FMT_ARGS(info.header->src), seq,
+               info.header->timeToLive);
         if (seq == TIMES)
           finish.unlock();
       }
@@ -105,7 +105,7 @@ public:
         if (ntohs(info.icmpHeader->identifier) == identifier) {
           int seq = ntohs(info.icmpHeader->seqNumber);
           printf(IP_ADDR_FMT_STRING "\n",
-                 IP_ADDR_FMT_ARGS(info.netHeader->src));
+                 IP_ADDR_FMT_ARGS(info.header->src));
           fflush(stdout);
           finish.store(true);
           idle.unlock();
@@ -120,7 +120,7 @@ public:
             ntohs(echoHeader->identifier) != identifier) {
           int seq = ntohs(echoHeader->seqNumber);
           printf(IP_ADDR_FMT_STRING "\n",
-                 IP_ADDR_FMT_ARGS(info.netHeader->src));
+                 IP_ADDR_FMT_ARGS(info.header->src));
           fflush(stdout);
           idle.unlock();
         }

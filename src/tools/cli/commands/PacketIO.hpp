@@ -2,11 +2,11 @@
 #include "commands.h"
 
 class CmdCapturePackets : public Command {
-  class Handler : public IP::RecvCallback {
+  class Handler {
   public:
-    Handler() : IP::RecvCallback(true, -1) {}
+    Handler() {}
 
-    int handle(const void *buf, int len, const Info &info) override {
+    int handle(const void *buf, int len, const IP::RecvInfo &info) {
       auto &header = *(const IP::Header *)buf;
       int protocol = header.protocol;
       printf("IP Packet length %d\n", len);
@@ -23,7 +23,14 @@ public:
   CmdCapturePackets() : Command("capture-packets") {}
 
   int main(int argc, char **argv) override {
-    INVOKE({ ip.addRecvCallback(&handler); })
+    INVOKE({
+      ip.addOnRecv(
+          [this](auto &&...args) -> int {
+            handler.handle(args...);
+            return 0;
+          },
+          0, true);
+    })
     return 0;
   }
 };

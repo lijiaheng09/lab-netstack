@@ -15,7 +15,7 @@ public:
 
   /**
    * @brief Setup the IP forwarding service.
-   * 
+   *
    * @return 0 on success, negative on error.
    */
   int setup();
@@ -23,14 +23,7 @@ public:
 private:
   bool isUp;
 
-  class IPHandler : public IP::RecvCallback {
-    IPForward &ipForward;
-    
-  public:
-    IPHandler(IPForward &ipForward_);
-
-    int handle(const void *data, int dataLen, const Info &info);
-  } ipHandler;
+  void handleRecv(const void *data, size_t dataLen, const IP::RecvInfo &info);
 };
 
 #endif

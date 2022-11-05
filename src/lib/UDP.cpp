@@ -12,7 +12,7 @@
 
 constexpr int UDP::PROTOCOL_ID = 17;
 
-UDP::UDP(NetworkLayer &network_) : network(network_), networkHandler(*this) {}
+UDP::UDP(NetworkLayer &network_) : network(network_) {}
 
 int UDP::sendSegment(const void *data, int dataLen,
                      const NetworkLayer::Addr &srcAddr, int srcPort,
@@ -81,7 +81,12 @@ int UDP::removeRecvCallback(RecvCallback *callback) {
 }
 
 int UDP::setup() {
-  network.addRecvCallback(&networkHandler);
+  network.addOnRecv(
+      [this](auto &&...args) -> int {
+        handleRecv(args...);
+        return 0;
+      },
+      PROTOCOL_ID);
   return 0;
 }
 
@@ -107,30 +112,27 @@ static uint16_t calcUdpChecksum(const UDP::PseudoNetworkHeader &pseudoHeader,
   return htons(~sum);
 }
 
-UDP::NetworkLayerHandler::NetworkLayerHandler(UDP &udp_)
-    : udp(udp_), NetworkLayer::RecvCallback(false, PROTOCOL_ID) {}
-
-int UDP::NetworkLayerHandler::handle(const void *seg, int segLen,
-                                     const Info &info) {
+void UDP::handleRecv(const void *seg, size_t segLen,
+                     const NetworkLayer::RecvInfo &info) {
   if (segLen < sizeof(Header)) {
-    ERRLOG("Truncated UDP header: %d/%d\n", segLen, (int)sizeof(Header));
-    return -1;
+    LOG_INFO("Truncated UDP header: %lu/%lu", segLen, sizeof(Header));
+    return;
   }
   const Header &header = *(const Header *)seg;
   if (segLen != ntohs(header.length)) {
-    ERRLOG("Invalid UDP packet length: %d/%d\n", segLen, header.length);
-    return -1;
+    LOG_INFO("Invalid UDP packet length: %lu/%hu", segLen, header.length);
+    return;
   }
   PseudoNetworkHeader pseudoHeader{
-    srcAddr : info.netHeader->src,
-    dstAddr : info.netHeader->dst,
+    srcAddr : info.header->src,
+    dstAddr : info.header->dst,
     zero : 0,
-    protocol : info.netHeader->protocol,
+    protocol : info.header->protocol,
     udpLength : header.length
   };
   if (header.checksum != 0 && calcUdpChecksum(pseudoHeader, seg, segLen) != 0) {
-    ERRLOG("UDP Checksum error\n");
-    return -1;
+    LOG_INFO("UDP Checksum error");
+    return;
   }
 
   UDP::RecvCallback::Info newInfo(info);
@@ -141,10 +143,9 @@ int UDP::NetworkLayerHandler::handle(const void *seg, int segLen,
 
   int port = ntohs(header.dstPort);
   int rc = 0;
-  for (auto *c : udp.callbacks)
+  for (auto *c : callbacks)
     if (c->port == -1 || c->port == port) {
       if (c->handle(data, dataLen, newInfo) != 0)
         rc = -1;
     }
-  return rc;
 }
