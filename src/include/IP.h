@@ -97,14 +97,21 @@ public:
    * @brief Get any IP address of a device. If there is no such address, get any
    * of the host.
    *
-   * @param device The preferred link layer device.
-   * @param addr Storage of the result.
+   * @param device The preferred device.
+   * @param res The result.
    *
    * @return 0 on success, 1 if got address of other device, -1 if no address
    * at all.
    */
-  int getAnyAddr(L2::Device *device, Addr &addr);
+  int getAnyAddr(L2::Device *device, Addr &res);
 
+  /**
+   * @brief Get the best source address to the destination.
+   *
+   * @param dst The destination.
+   * @param res The result.
+   * @return 0 on success, negative on error.
+   */
   int getSrcAddr(Addr dst, Addr &res);
 
   /**
@@ -156,7 +163,7 @@ public:
   struct SendOptions {
     L2::Device *device;
     L2::Addr dstMAC;
-    int timeToLive = 64;
+    uint8_t timeToLive = 64;
   };
 
   /**
@@ -166,12 +173,11 @@ public:
    * @param buf Pointer to the packet (with checksum may be modified).
    * @param len Length of the packet.
    * @param options Other options.
-   *        WARNING: autoRetry will automatically free the packet.
    *
    * @return 0 on success, negative on error.
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
-  int sendPacketWithHeader(void *packet, int packetLen, SendOptions options);
+  int sendWithHeader(void *packet, size_t packetLen, SendOptions options);
 
   /**
    * @brief Send an IP packet.
@@ -186,8 +192,8 @@ public:
    * @return 0 on success, negative on error.
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
-  int sendPacket(const void *data, int dataLen, const Addr &src,
-                 const Addr &dst, int protocol, SendOptions options);
+  int send(const void *data, size_t dataLen, Addr src, Addr dst,
+           uint8_t protocol, SendOptions options);
 
   /**
    * @brief Handle the result of waiting.

@@ -44,7 +44,7 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
   assert(calcInternetChecksum16(msg, msgLen) == 0);
 #endif
 
-  rc = ip.sendPacket(msg, msgLen, src, origHeader.src, PROTOCOL_ID,
+  rc = ip.send(msg, msgLen, src, origHeader.src, PROTOCOL_ID,
                      {.device = info.l2.device, .dstMAC = info.l2.header->src});
   free(msg);
   return rc;
@@ -83,7 +83,7 @@ int ICMP::sendEchoOrReply(const IP::Addr &src, const IP::Addr &dst, int type,
   assert(calcInternetChecksum16(msg, msgLen) == 0);
 #endif
 
-  int rc = ip.sendPacket(msg, msgLen, src, dst, PROTOCOL_ID, options);
+  int rc = ip.send(msg, msgLen, src, dst, PROTOCOL_ID, options);
   free(msg);
   return rc;
 }
@@ -142,7 +142,7 @@ void ICMP::handleRecv(const void *msg, size_t msgLen,
       assert(calcInternetChecksum16(reply, msgLen) == 0);
 #endif
 
-      rc = ip.sendPacket(
+      rc = ip.send(
           reply, msgLen, info.header->dst, info.header->src, PROTOCOL_ID,
           {.device = info.l2.device, .dstMAC = info.l2.header->src});
       free(reply);

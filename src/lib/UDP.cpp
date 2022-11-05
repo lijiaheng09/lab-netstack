@@ -56,11 +56,11 @@ int UDP::sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
   assert(calcInternetChecksum16(buf, bufLen) == 0);
 #endif
 
-  int rc = l3.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
+  int rc = l3.send(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
   if (rc == E_WAIT_FOR_TRYAGAIN) {
     l3.addWait(dstAddr, [=](bool succ) {
       if (succ)
-        l3.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
+        l3.send(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
       free(buf);
     });
   } else {

@@ -32,16 +32,16 @@ const Vector<IP::DevAddr> &IP::getAddrs() {
   return addrs;
 }
 
-int IP::getAnyAddr(L2::Device *device, Addr &addr) {
+int IP::getAnyAddr(L2::Device *device, Addr &res) {
   if (addrs.empty())
     return -1;
   for (auto &&e : addrs)
     if (e.device == device) {
-      addr = e.addr;
-      return 1;
+      res = e.addr;
+      return 0;
     }
-  addr = addrs.front().addr;
-  return 0;
+  res = addrs.front().addr;
+  return 1;
 }
 
 int IP::getSrcAddr(Addr dst, Addr &res) {
@@ -49,17 +49,9 @@ int IP::getSrcAddr(Addr dst, Addr &res) {
     return -1;
   Routing::HopInfo hop;
   int rc = routing->query(dst, hop);
-  if (rc == 0)
-    return getAnyAddr(hop.device, res);
-  else if (rc == E_WAIT_FOR_TRYAGAIN && hop.gateway != Addr{0})
-    dst = hop.gateway;
-  for (auto &&e : addrs)
-    if ((e.addr & e.mask) == (dst & e.mask)) {
-      res = e.addr;
-      return 1;
-    }
-  res = addrs.front().addr;
-  return 0;
+  if (rc != 0)
+    return rc;
+  return getAnyAddr(hop.device, res);
 }
 
 IP::L2::Device *IP::findDeviceByAddr(Addr addr) {
@@ -77,16 +69,16 @@ IP::Routing *IP::getRouting() {
   return routing;
 }
 
-int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
+int IP::sendWithHeader(void *packet, size_t packetLen, SendOptions options) {
   Header &header = *(Header *)packet;
   if (packetLen < sizeof(Header)) {
-    ERRLOG("Truncated IP header: %d/%d\n", packetLen, (int)sizeof(Header));
+    LOG_ERR("Truncated IP header: %lu/%lu", packetLen, sizeof(Header));
     return -1;
   }
-  int hdrLen = (header.versionAndIHL & 0x0f) * 4;
+  size_t hdrLen = (header.versionAndIHL & 0x0f) * 4;
   if (ntohs(header.totalLength) != packetLen || packetLen < hdrLen) {
-    ERRLOG("Invalid IP packet length: %d/%d:%d\n", packetLen, hdrLen,
-           ntohs(header.totalLength));
+    LOG_ERR("Invalid IP packet length: %lu/%lu:%hu", packetLen, hdrLen,
+            ntohs(header.totalLength));
     return -1;
   }
 
@@ -99,18 +91,20 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
   int rc = 0;
   bool isBroadcast = false;
   for (auto &&e : addrs)
-    if (header.dst == BROADCAST || header.dst == (e.addr | ~e.mask)) {
-      isBroadcast = true;
-      if (l2.send(packet, packetLen, L2::BROADCAST, PROTOCOL_ID, e.device) !=
-          0) {
-        rc = -1;
+    if (!options.device || e.device == options.device) {
+      if (header.dst == BROADCAST || header.dst == (e.addr | ~e.mask)) {
+        isBroadcast = true;
+        int rc1 =
+            l2.send(packet, packetLen, L2::BROADCAST, PROTOCOL_ID, e.device);
+        if (rc1 != 0)
+          rc = rc1;
       }
     }
   if (isBroadcast)
     return rc;
 
   if (!routing) {
-    ERRLOG("No IP routing policy.\n");
+    LOG_ERR("No IP routing policy");
     return -1;
   }
   Routing::HopInfo hop;
@@ -121,15 +115,15 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
   } else {
     rc = routing->query(header.dst, hop);
     if (rc != 0) {
-      ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
-             IP_ADDR_FMT_ARGS(header.dst));
+      LOG_ERR("IP routing error for " IP_ADDR_FMT_STRING,
+              IP_ADDR_FMT_ARGS(header.dst));
       return rc;
     }
     Addr hopAddr = hop.gateway == Addr{0} ? header.dst : hop.gateway;
     rc = arp.query(hopAddr, dstMAC);
     if (rc == E_WAIT_FOR_TRYAGAIN) {
-      ERRLOG("ARP query for " IP_ADDR_FMT_STRING ": wait to try again.\n",
-             IP_ADDR_FMT_ARGS(hopAddr));
+      LOG_ERR("ARP query for " IP_ADDR_FMT_STRING ": wait to try again",
+              IP_ADDR_FMT_ARGS(hopAddr));
     }
     if (rc != 0)
       return rc;
@@ -137,46 +131,37 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
   return l2.send(packet, packetLen, dstMAC, PROTOCOL_ID, hop.device);
 }
 
-int IP::sendPacket(const void *data, int dataLen, const Addr &src,
-                   const Addr &dst, int protocol, SendOptions options) {
-  int packetLen = sizeof(Header) + dataLen;
-
-  if (dataLen < 0 || (packetLen >> 16) != 0) {
-    ERRLOG("Invalid IP data length: %d\n", dataLen);
+int IP::send(const void *data, size_t dataLen, Addr src, Addr dst,
+             uint8_t protocol, SendOptions options) {
+  if (dataLen > UINT16_MAX - sizeof(Header)) {
+    LOG_ERR("IP data length too large: %lu", dataLen);
     return -1;
   }
-  if ((protocol >> 8) != 0) {
-    ERRLOG("Invalid IP protocol field: %X\n", protocol);
-    return -1;
-  }
-  if (options.timeToLive == 0)
-    options.timeToLive = 64; // default
-  if ((options.timeToLive >> 8) != 0) {
-    ERRLOG("Invalid IP TTL field: %X\n", options.timeToLive);
-    return -1;
-  }
+  uint16_t packetLen = sizeof(Header) + dataLen;
+#ifdef NETSTACK_DEBUG
+  assert(options.timeToLive > 0);
+#endif
 
   void *packet = malloc(packetLen);
   if (!packet) {
-    ERRLOG("malloc error: %s\n", strerror(errno));
+    LOG_ERR_POSIX("malloc");
     return -1;
   }
 
   Header &header = *(Header *)packet;
-  header = Header{
-    versionAndIHL : 4 << 4 | 5,
-    typeOfService : 0,
-    totalLength : htons(packetLen),
-    identification : 0,
-    flagsAndFragmentOffset : htons(0b010 << 13 | 0),
-    timeToLive : (uint8_t)options.timeToLive,
-    protocol : (uint8_t)protocol,
-    headerChecksum : 0,
-    src : src,
-    dst : dst
-  };
+  header = Header{.versionAndIHL = 4 << 4 | 5,
+                  .typeOfService = 0,
+                  .totalLength = htons(packetLen),
+                  .identification = 0,
+                  .flagsAndFragmentOffset = htons(0b010 << 13 | 0),
+                  .timeToLive = options.timeToLive,
+                  .protocol = protocol,
+                  .headerChecksum = 0,
+                  .src = src,
+                  .dst = dst};
   memcpy(&header + 1, data, dataLen);
-  int rc = sendPacketWithHeader(packet, packetLen, options);
+
+  int rc = sendWithHeader(packet, packetLen, options);
   free(packet);
   return rc;
 }

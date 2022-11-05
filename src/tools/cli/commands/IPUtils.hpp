@@ -183,7 +183,7 @@ public:
       idle.lock();
       INVOKE({
         rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
-                                     sizeof(data), {.timeToLive = i});
+                                     sizeof(data), {.timeToLive = (uint8_t)i});
       })
       if (rc == E_WAIT_FOR_TRYAGAIN) {
         std::timed_mutex wait;
@@ -201,7 +201,8 @@ public:
         if (wait.try_lock_for(1.5s)) {
           INVOKE({
             rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
-                                         sizeof(data), {.timeToLive = i});
+                                         sizeof(data),
+                                         {.timeToLive = (uint8_t)i});
           })
         }
       }
