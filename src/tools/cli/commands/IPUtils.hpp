@@ -64,9 +64,29 @@ public:
       printf("Send %d\n", i);
       INVOKE({
         rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
-                                     sizeof(data));
+                                     sizeof(data), {});
       })
-      if (rc != 0 && rc != E_WAIT_FOR_TRYAGAIN) {
+      if (rc == E_WAIT_FOR_TRYAGAIN) {
+        std::timed_mutex wait;
+        wait.lock();
+        INVOKE({
+          ip.addWait(
+              host,
+              [&wait](bool succ) {
+                if (succ)
+                  wait.unlock();
+              },
+              1);
+        })
+        // TODO remove the timer after implementing timeout
+        if (wait.try_lock_for(1.5s)) {
+          INVOKE({
+            rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
+                                         sizeof(data), {});
+          })
+        }
+      }
+      if (rc != 0) {
         goto END;
       }
       if (i < TIMES)
@@ -104,8 +124,7 @@ public:
         // Echo Reply
         if (ntohs(info.icmpHeader->identifier) == identifier) {
           int seq = ntohs(info.icmpHeader->seqNumber);
-          printf(IP_ADDR_FMT_STRING "\n",
-                 IP_ADDR_FMT_ARGS(info.header->src));
+          printf(IP_ADDR_FMT_STRING "\n", IP_ADDR_FMT_ARGS(info.header->src));
           fflush(stdout);
           finish.store(true);
           idle.unlock();
@@ -119,8 +138,7 @@ public:
         if (echoHeader->type != 8 ||
             ntohs(echoHeader->identifier) != identifier) {
           int seq = ntohs(echoHeader->seqNumber);
-          printf(IP_ADDR_FMT_STRING "\n",
-                 IP_ADDR_FMT_ARGS(info.header->src));
+          printf(IP_ADDR_FMT_STRING "\n", IP_ADDR_FMT_ARGS(info.header->src));
           fflush(stdout);
           idle.unlock();
         }
@@ -165,9 +183,30 @@ public:
       idle.lock();
       INVOKE({
         rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
-                                     sizeof(data), i);
+                                     sizeof(data), {.timeToLive = i});
       })
-      if (rc != 0 && rc != E_WAIT_FOR_TRYAGAIN)
+      if (rc == E_WAIT_FOR_TRYAGAIN) {
+        std::timed_mutex wait;
+        wait.lock();
+        INVOKE({
+          ip.addWait(
+              host,
+              [&wait](bool succ) {
+                if (succ)
+                  wait.unlock();
+              },
+              1);
+        })
+        // TODO remove the timer after implementing timeout
+        if (wait.try_lock_for(1.5s)) {
+          INVOKE({
+            rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
+                                         sizeof(data), {.timeToLive = i});
+          })
+        }
+      }
+
+      if (rc != 0)
         break;
       if (!idle.try_lock_for(i * 2s)) {
         printf("*\n");

@@ -42,13 +42,13 @@ public:
    * @param seqNumber Sequence number.
    * @param data Pointer to the data.
    * @param dataLen Length of the data.
-   * @param timeToLive The `time to live` field for IP transmission.
+   * @param options Other IP sending options.
    *
    * @return 0 on success, negative on error.
    */
   int sendEchoOrReply(const IP::Addr &src, const IP::Addr &dst, int type,
                       int identifier, int seqNumber, const void *data,
-                      int dataLen, int timeToLive = 64);
+                      int dataLen, IP::SendOptions options);
 
   class RecvCallback {
   public:
@@ -57,8 +57,7 @@ public:
     struct Info : IP::RecvInfo {
       const Header *icmpHeader;
 
-      Info(const IP::RecvInfo &info_)
-          : IP::RecvInfo(info_) {}
+      Info(const IP::RecvInfo &info_) : IP::RecvInfo(info_) {}
     };
 
     RecvCallback(int type_);

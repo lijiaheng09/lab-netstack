@@ -2,6 +2,7 @@
 #define NETSTACK_ETHERNET_H
 
 #include <cinttypes>
+#include <cstring>
 
 #include "utils.h"
 
@@ -24,6 +25,13 @@ public:
 
   struct Addr {
     unsigned char data[6];
+
+    friend bool operator==(Addr a, Addr b) {
+      return memcmp(&a, &b, sizeof(Addr)) == 0;
+    }
+    friend bool operator!=(Addr a, Addr b) {
+      return memcmp(&a, &b, sizeof(Addr)) != 0;
+    }
   } __attribute__((packed));
 
   static constexpr Addr BROADCAST{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

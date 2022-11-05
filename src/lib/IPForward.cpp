@@ -8,6 +8,7 @@
 #include "log.h"
 
 #include "IPForward.h"
+#include "ARP.h"
 #include "ICMP.h"
 
 IPForward::IPForward(IP &ip_) : ip(ip_), isUp(false) {}
@@ -69,6 +70,14 @@ void IPForward::handleRecv(const void *data, size_t dataLen,
   auto &newHeader = *(IP::Header *)newBuf;
   newHeader.timeToLive -= procTime;
 
-  int rc = ip.sendPacketWithHeader(newBuf, packetLen, {autoRetry : true});
-  // free(newBuf);
+  int rc = ip.sendPacketWithHeader(newBuf, packetLen, {});
+  if (rc == E_WAIT_FOR_TRYAGAIN) {
+    ip.addWait(newHeader.dst, [=](bool succ) {
+      if (succ)
+        ip.sendPacketWithHeader(newBuf, packetLen, {});
+      free(newBuf);
+    });
+  } else {
+    free(newBuf);
+  }
 }

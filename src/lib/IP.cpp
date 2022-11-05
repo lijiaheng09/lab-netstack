@@ -114,47 +114,25 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
     return -1;
   }
   Routing::HopInfo hop;
-  rc = routing->query(header.dst, hop);
-  if (rc != 0)
-    return rc;
-
-  Addr hopAddr = hop.gateway == Addr{0} ? header.dst : hop.gateway;
   L2::Addr dstMAC;
-  rc = arp.query(hopAddr, dstMAC);
-  if (rc < 0) {
-    if (rc == E_WAIT_FOR_TRYAGAIN) {
-      ERRLOG("IP routing for " IP_ADDR_FMT_STRING ": wait to try again.\n",
-             IP_ADDR_FMT_ARGS(header.dst));
-
-      auto originalCallback = options.waitingCallback;
-      auto waitHandler = [=](bool succ) {
-        if (!succ)
-          return;
-        L2::Addr dstMAC;
-        int rc = arp.query(hopAddr, dstMAC);
-        if (rc < 0) {
-          if (rc == E_WAIT_FOR_TRYAGAIN)
-            ERRLOG("IP routing for " IP_ADDR_FMT_STRING
-                   ": wait to try again.\n",
-                   IP_ADDR_FMT_ARGS(header.dst));
-          else
-            ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
-                   IP_ADDR_FMT_ARGS(header.dst));
-          free(packet);
-          return;
-        }
-        l2.send(packet, packetLen, dstMAC, PROTOCOL_ID, hop.device);
-        free(packet);
-        if (originalCallback)
-          originalCallback();
-      };
-      arp.addWait(hopAddr, waitHandler);
-
-    } else {
+  if (options.device && options.dstMAC != L2::Addr{0}) {
+    hop.device = options.device;
+    dstMAC = options.dstMAC;
+  } else {
+    rc = routing->query(header.dst, hop);
+    if (rc != 0) {
       ERRLOG("No IP routing for " IP_ADDR_FMT_STRING "\n",
              IP_ADDR_FMT_ARGS(header.dst));
+      return rc;
     }
-    return rc;
+    Addr hopAddr = hop.gateway == Addr{0} ? header.dst : hop.gateway;
+    rc = arp.query(hopAddr, dstMAC);
+    if (rc == E_WAIT_FOR_TRYAGAIN) {
+      ERRLOG("ARP query for " IP_ADDR_FMT_STRING ": wait to try again.\n",
+             IP_ADDR_FMT_ARGS(hopAddr));
+    }
+    if (rc != 0)
+      return rc;
   }
   return l2.send(packet, packetLen, dstMAC, PROTOCOL_ID, hop.device);
 }
@@ -199,9 +177,25 @@ int IP::sendPacket(const void *data, int dataLen, const Addr &src,
   };
   memcpy(&header + 1, data, dataLen);
   int rc = sendPacketWithHeader(packet, packetLen, options);
-  if (!options.autoRetry)
-    free(packet);
+  free(packet);
   return rc;
+}
+
+int IP::addWait(Addr dst, WaitHandler handler, time_t timeout) {
+  if (!routing) {
+    LOG_ERR("No IP routing policy.");
+    return -1;
+  }
+  Routing::HopInfo hop;
+  int rc = routing->query(dst, hop);
+  if (rc != 0) {
+    LOG_ERR("No IP routing for " IP_ADDR_FMT_STRING "\n",
+            IP_ADDR_FMT_ARGS(dst));
+    return rc;
+  }
+  Addr hopAddr = hop.gateway == Addr{0} ? dst : hop.gateway;
+  arp.addWait(hopAddr, handler, timeout);
+  return 0;
 }
 
 void IP::addOnRecv(RecvHandler handler, uint8_t protocol, bool promiscuous) {

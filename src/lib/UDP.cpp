@@ -14,9 +14,8 @@ constexpr int UDP::PROTOCOL_ID = 17;
 
 UDP::UDP(L3 &l3_) : l3(l3_) {}
 
-int UDP::sendSegment(const void *data, int dataLen,
-                     const L3::Addr &srcAddr, int srcPort,
-                     const L3::Addr &dstAddr, int dstPort,
+int UDP::sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
+                     int srcPort, const L3::Addr &dstAddr, int dstPort,
                      SendOptions options) {
   int segLen = sizeof(Header) + dataLen;
   int bufLen = sizeof(PseudoL3Header) + segLen;
@@ -57,11 +56,16 @@ int UDP::sendSegment(const void *data, int dataLen,
   assert(calcInternetChecksum16(buf, bufLen) == 0);
 #endif
 
-  int rc = l3.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {
-    autoRetry : options.autoRetry,
-    waitingCallback : options.waitingCallback
-  });
-  free(buf);
+  int rc = l3.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
+  if (rc == E_WAIT_FOR_TRYAGAIN) {
+    l3.addWait(dstAddr, [=](bool succ) {
+      if (succ)
+        l3.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
+      free(buf);
+    });
+  } else {
+    free(buf);
+  }
   return rc;
 }
 
@@ -101,8 +105,7 @@ static uint16_t calcUdpChecksum(const UDP::PseudoL3Header &pseudoHeader,
   return htons(~sum);
 }
 
-void UDP::handleRecv(const void *seg, size_t segLen,
-                     const L3::RecvInfo &info) {
+void UDP::handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info) {
   if (segLen < sizeof(Header)) {
     LOG_INFO("Truncated UDP header: %lu/%lu", segLen, sizeof(Header));
     return;
@@ -112,13 +115,11 @@ void UDP::handleRecv(const void *seg, size_t segLen,
     LOG_INFO("Invalid UDP packet length: %lu/%hu", segLen, header.length);
     return;
   }
-  PseudoL3Header pseudoHeader{
-    .srcAddr = info.header->src,
-    .dstAddr = info.header->dst,
-    .zero = 0,
-    .protocol = info.header->protocol,
-    .udpLength = header.length
-  };
+  PseudoL3Header pseudoHeader{.srcAddr = info.header->src,
+                              .dstAddr = info.header->dst,
+                              .zero = 0,
+                              .protocol = info.header->protocol,
+                              .udpLength = header.length};
   if (header.checksum != 0 && calcUdpChecksum(pseudoHeader, seg, segLen) != 0) {
     LOG_INFO("UDP Checksum error");
     return;
@@ -126,13 +127,10 @@ void UDP::handleRecv(const void *seg, size_t segLen,
 
   const void *data = &header + 1;
   size_t dataLen = segLen - sizeof(Header);
-  UDP::RecvInfo newInfo{
-    .l3 = info,
-    .udpHeader = &header
-  };
+  UDP::RecvInfo newInfo{.l3 = info, .udpHeader = &header};
 
   auto r = onRecv.equal_range(ntohs(header.dstPort));
-  for (auto it = r.first; it != r.second; ) {
+  for (auto it = r.first; it != r.second;) {
     if (it->second(data, dataLen, newInfo) == 1)
       it = onRecv.erase(it);
     else

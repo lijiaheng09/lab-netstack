@@ -125,7 +125,7 @@ public:
     using Addr = L3::Addr;
 
     struct HopInfo {
-      Addr gateway;       // The IP address of the next hop.
+      Addr gateway; // The next hop gateway, 0 if the destination is local.
       L2::Device *device; // The port to the next hop.
     };
 
@@ -154,9 +154,9 @@ public:
   Routing *getRouting();
 
   struct SendOptions {
-    int timeToLive;
-    bool autoRetry;
-    std::function<void()> waitingCallback;
+    L2::Device *device;
+    L2::Addr dstMAC;
+    int timeToLive = 64;
   };
 
   /**
@@ -171,8 +171,7 @@ public:
    * @return 0 on success, negative on error.
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
-  int sendPacketWithHeader(void *packet, int packetLen,
-                           SendOptions options = {});
+  int sendPacketWithHeader(void *packet, int packetLen, SendOptions options);
 
   /**
    * @brief Send an IP packet.
@@ -188,7 +187,23 @@ public:
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
   int sendPacket(const void *data, int dataLen, const Addr &src,
-                 const Addr &dst, int protocol, SendOptions options = {});
+                 const Addr &dst, int protocol, SendOptions options);
+
+  /**
+   * @brief Handle the result of waiting.
+   *
+   * @param succ If sending is available now.
+   */
+  using WaitHandler = std::function<void(bool succ)>;
+
+  /**
+   * @brief Wait for sending to a destination being available.
+   *
+   * @param dst The destination of sending.
+   * @param handler The handler after waiting.
+   * @param timeout The waiting timeout (TODO).
+   */
+  int addWait(Addr dst, WaitHandler handler, time_t timeout = 60);
 
   struct RecvInfo {
     L2::RecvInfo l2;       // The L2 `RecvInfo`
