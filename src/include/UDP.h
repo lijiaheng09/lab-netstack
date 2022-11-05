@@ -9,7 +9,7 @@
  */
 class UDP {
 public:
-  using NetworkLayer = IP;
+  using L3 = IP;
   static const int PROTOCOL_ID;
 
   struct Header {
@@ -17,19 +17,19 @@ public:
     uint16_t dstPort;
     uint16_t length;
     uint16_t checksum;
-  };
+  } __attribute__((packed));
 
-  struct PseudoNetworkHeader {
-    NetworkLayer::Addr srcAddr;
-    NetworkLayer::Addr dstAddr;
+  struct PseudoL3Header {
+    L3::Addr srcAddr;
+    L3::Addr dstAddr;
     uint8_t zero;
     uint8_t protocol;
     uint16_t udpLength;
-  };
+  } __attribute__((packed));
 
-  NetworkLayer &network;
+  L3 &l3;
 
-  UDP(NetworkLayer &network_);
+  UDP(L3 &l3_);
   UDP(const UDP &) = delete;
 
   struct SendOptions {
@@ -51,8 +51,8 @@ public:
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
   int sendSegment(const void *data, int dataLen,
-                  const NetworkLayer::Addr &srcAddr, int srcPort,
-                  const NetworkLayer::Addr &dstAddr, int dstPort,
+                  const L3::Addr &srcAddr, int srcPort,
+                  const L3::Addr &dstAddr, int dstPort,
                   SendOptions = {});
 
   class RecvCallback {
@@ -66,11 +66,10 @@ public:
      */
     RecvCallback(int port_);
 
-    struct Info : NetworkLayer::RecvInfo {
+    struct Info {
+      L3::RecvInfo l3;
+      L3::L2::RecvInfo &l2 = l3.l2;
       const Header *udpHeader;
-
-      Info(const NetworkLayer::RecvInfo &info_)
-          : NetworkLayer::RecvInfo(info_) {}
     };
 
     /**
@@ -111,7 +110,7 @@ private:
   Vector<RecvCallback *> callbacks;
 
   void handleRecv(const void *seg, size_t segLen,
-                  const NetworkLayer::RecvInfo &info);
+                  const L3::RecvInfo &info);
 };
 
 #endif

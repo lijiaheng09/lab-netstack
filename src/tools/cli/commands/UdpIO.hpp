@@ -18,7 +18,7 @@ class CmdNcUdpListen : public Command {
 
     int handle(const void *data, int dataLen, const Info &info) override {
       if (listen.load()) {
-        remote = info.header->src;
+        remote = info.l3.header->src;
         remotePort = ntohs(info.udpHeader->srcPort);
         listen.store(false);
         printf("[*] Recv from " IP_ADDR_FMT_STRING ":%d\n",

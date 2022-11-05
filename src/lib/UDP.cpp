@@ -12,14 +12,14 @@
 
 constexpr int UDP::PROTOCOL_ID = 17;
 
-UDP::UDP(NetworkLayer &network_) : network(network_) {}
+UDP::UDP(L3 &l3_) : l3(l3_) {}
 
 int UDP::sendSegment(const void *data, int dataLen,
-                     const NetworkLayer::Addr &srcAddr, int srcPort,
-                     const NetworkLayer::Addr &dstAddr, int dstPort,
+                     const L3::Addr &srcAddr, int srcPort,
+                     const L3::Addr &dstAddr, int dstPort,
                      SendOptions options) {
   int segLen = sizeof(Header) + dataLen;
-  int bufLen = sizeof(PseudoNetworkHeader) + segLen;
+  int bufLen = sizeof(PseudoL3Header) + segLen;
 
   if (dataLen < 0 || (segLen >> 16) != 0) {
     ERRLOG("Invalid UDP data length: %d\n", dataLen);
@@ -35,8 +35,8 @@ int UDP::sendSegment(const void *data, int dataLen,
     ERRLOG("malloc error: %s\n", strerror(errno));
     return -1;
   }
-  auto &pseudoHeader = *(PseudoNetworkHeader *)buf;
-  pseudoHeader = PseudoNetworkHeader{
+  auto &pseudoHeader = *(PseudoL3Header *)buf;
+  pseudoHeader = PseudoL3Header{
     srcAddr : srcAddr,
     dstAddr : dstAddr,
     zero : 0,
@@ -57,7 +57,7 @@ int UDP::sendSegment(const void *data, int dataLen,
   assert(calcInternetChecksum16(buf, bufLen) == 0);
 #endif
 
-  int rc = network.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {
+  int rc = l3.sendPacket(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {
     autoRetry : options.autoRetry,
     waitingCallback : options.waitingCallback
   });
@@ -81,7 +81,7 @@ int UDP::removeRecvCallback(RecvCallback *callback) {
 }
 
 int UDP::setup() {
-  network.addOnRecv(
+  l3.addOnRecv(
       [this](auto &&...args) -> int {
         handleRecv(args...);
         return 0;
@@ -90,12 +90,12 @@ int UDP::setup() {
   return 0;
 }
 
-static uint16_t calcUdpChecksum(const UDP::PseudoNetworkHeader &pseudoHeader,
+static uint16_t calcUdpChecksum(const UDP::PseudoL3Header &pseudoHeader,
                                 const void *data, int len) {
   const uint8_t *d0 = (const uint8_t *)&pseudoHeader;
   const uint8_t *d1 = (const uint8_t *)data;
   uint32_t sum = 0;
-  for (int i = 0; i + 1 < sizeof(UDP::PseudoNetworkHeader); i += 2) {
+  for (int i = 0; i + 1 < sizeof(UDP::PseudoL3Header); i += 2) {
     uint16_t x = ((uint16_t)d0[i] << 8 | d0[i + 1]);
     sum += x;
     sum = (sum + (sum >> 16)) & 0xFFFF;
@@ -113,7 +113,7 @@ static uint16_t calcUdpChecksum(const UDP::PseudoNetworkHeader &pseudoHeader,
 }
 
 void UDP::handleRecv(const void *seg, size_t segLen,
-                     const NetworkLayer::RecvInfo &info) {
+                     const L3::RecvInfo &info) {
   if (segLen < sizeof(Header)) {
     LOG_INFO("Truncated UDP header: %lu/%lu", segLen, sizeof(Header));
     return;
@@ -123,7 +123,7 @@ void UDP::handleRecv(const void *seg, size_t segLen,
     LOG_INFO("Invalid UDP packet length: %lu/%hu", segLen, header.length);
     return;
   }
-  PseudoNetworkHeader pseudoHeader{
+  PseudoL3Header pseudoHeader{
     srcAddr : info.header->src,
     dstAddr : info.header->dst,
     zero : 0,
@@ -135,8 +135,10 @@ void UDP::handleRecv(const void *seg, size_t segLen,
     return;
   }
 
-  UDP::RecvCallback::Info newInfo(info);
-  newInfo.udpHeader = &header;
+  UDP::RecvCallback::Info newInfo{
+    .l3 = info,
+    .udpHeader = &header
+  };
 
   const void *data = &header + 1;
   int dataLen = segLen - sizeof(Header);

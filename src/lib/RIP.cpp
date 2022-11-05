@@ -53,8 +53,8 @@ int RIP::match(const Addr &addr, HopInfo &res,
 }
 
 int RIP::sendRequest() {
-  UDP::NetworkLayer::Addr srcAddr;
-  if (udp.network.getAnyAddr(nullptr, srcAddr) < 0) {
+  UDP::L3::Addr srcAddr;
+  if (udp.l3.getAnyAddr(nullptr, srcAddr) < 0) {
     ERRLOG("No IP address on the host.\n");
     return -1;
   }
@@ -70,8 +70,8 @@ int RIP::sendUpdate() {
 
   updateTime = curTime + updateCycle;
 
-  UDP::NetworkLayer::Addr srcAddr;
-  if (udp.network.getAnyAddr(nullptr, srcAddr) < 0) {
+  UDP::L3::Addr srcAddr;
+  if (udp.l3.getAnyAddr(nullptr, srcAddr) < 0) {
     ERRLOG("No IP address on the host.\n");
     return -1;
   }
@@ -164,7 +164,7 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
       realUpdated = true;
     } else {
       auto &&r = rip.table[{e.address, e.mask}];
-      if ((r.metric != 0 && r.gateway == info.header->src) ||
+      if ((r.metric != 0 && r.gateway == info.l3.header->src) ||
           metric < r.metric) {
         updateEnt = true;
         if (metric != r.metric)
@@ -175,7 +175,7 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
     if (updateEnt) {
       rip.table[{e.address, e.mask}] = TabEntry{
         device : info.l2.device,
-        gateway : info.header->src,
+        gateway : info.l3.header->src,
         metric : metric,
         expireTime : curTime + rip.expireCycle
       };
@@ -184,7 +184,7 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
           addr : e.address,
           mask : e.mask,
           device : info.l2.device,
-          gateway : info.header->src,
+          gateway : info.l3.header->src,
         });
       } else {
         rip.matchTable.delEntry(e.address, e.mask);
