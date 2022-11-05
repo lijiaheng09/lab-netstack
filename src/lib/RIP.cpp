@@ -174,7 +174,7 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
 
     if (updateEnt) {
       rip.table[{e.address, e.mask}] = TabEntry{
-        device : info.linkDevice,
+        device : info.device,
         gateway : info.netHeader->src,
         metric : metric,
         expireTime : curTime + rip.expireCycle
@@ -183,7 +183,7 @@ int RIP::UDPHandler::handle(const void *msg, int msgLen, const Info &info) {
         rip.matchTable.setEntry({
           addr : e.address,
           mask : e.mask,
-          device : info.linkDevice,
+          device : info.device,
           gateway : info.netHeader->src,
         });
       } else {

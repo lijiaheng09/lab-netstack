@@ -192,8 +192,7 @@ public:
    * Including: E_WAIT_FOR_TRYAGAIN.
    */
   int sendPacket(const void *data, int dataLen, const Addr &src,
-                 const Addr &dst, int protocol,
-                 SendOptions options = {});
+                 const Addr &dst, int protocol, SendOptions options = {});
 
   class RecvCallback {
   public:
@@ -208,13 +207,12 @@ public:
      */
     RecvCallback(bool promiscuous_, int protocol_);
 
-    struct Info : LinkLayer::RecvCallback::Info {
+    struct Info : LinkLayer::RecvInfo {
       const Header *netHeader;
       bool isBroadcast;
       LinkLayer::Device *endDevice;
 
-      Info(const LinkLayer::RecvCallback::Info &info_)
-          : LinkLayer::RecvCallback::Info(info_) {}
+      Info(const LinkLayer::RecvInfo &info_) : LinkLayer::RecvInfo(info_) {}
     };
 
     /**
@@ -237,6 +235,16 @@ public:
   void addRecvCallback(RecvCallback *callback);
 
   /**
+   * @brief Handle a receiving packet from the Link-Layer.
+   *
+   * @param frame Pointer to the packet.
+   * @param frameLen Length of the packet.
+   * @param info Other information.
+   */
+  void handleRecv(const void *packet, size_t packetCapLen,
+                  const LinkLayer::RecvInfo &info);
+
+  /**
    * @brief Setup the IP network service.
    *
    * @return 0 on success, negative on error.
@@ -248,15 +256,6 @@ private:
   Routing *routing;
 
   Vector<RecvCallback *> callbacks;
-
-  class LinkLayerHandler : public LinkLayer::RecvCallback {
-    IP &ip;
-
-  public:
-    LinkLayerHandler(IP &ip_);
-
-    int handle(const void *packet, int packetCapLen, const Info &info) override;
-  } linkLayerHandler;
 };
 
 #endif

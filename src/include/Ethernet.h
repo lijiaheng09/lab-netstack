@@ -20,19 +20,19 @@
  */
 class Ethernet {
 public:
-  static const int LINK_TYPE; // The corresponding linkType in netBase.
+  static constexpr int LINK_TYPE = 1; // The corresponding linkType in netBase.
 
   struct Addr {
     unsigned char data[6];
+  } __attribute__((packed));
 
-    static const Addr BROADCAST;
-  };
+  static constexpr Addr BROADCAST{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
   struct Header {
     Addr dst;
     Addr src;
     uint16_t etherType;
-  };
+  } __attribute__((packed));
 
   NetBase &netBase;
 
@@ -41,7 +41,6 @@ public:
 
   class Device : public NetBase::Device {
     Device(struct pcap *p_, const char *name_, const Addr &addr_);
-
     friend class Ethernet;
 
   public:
@@ -49,10 +48,10 @@ public:
   };
 
   /**
-   * @brief Add an Ethernet device to the netstack.
+   * @brief Add an Ethernet device to the netstack by its name.
    *
    * @param name Name of the device.
-   * @return Pointer to the added `Ethernet::Device` object, nullptr on error.
+   * @return The added device, `nullptr` on error.
    */
   Device *addDeviceByName(const char *name);
 
@@ -74,44 +73,35 @@ public:
    * @param dev The device.
    * @return 0 on success, negative on error.
    */
-  int send(const void *data, size_t dataLen, Addr dst, uint16_t etherType, Device *dev);
+  int send(const void *data, size_t dataLen, Addr dst, uint16_t etherType,
+           Device *dev);
 
-  class RecvCallback {
-  public:
-    int etherType; // The matching etherType, -1 for any.
+  struct RecvInfo {
+    timeval timestamp;
 
-    /**
-     * @brief Construct a new RecvCallback object.
-     *
-     * @param etherType_ The matching etherType, -1 for any.
-     */
-    RecvCallback(int etherType_);
-
-    struct Info {
-      timeval timestamp;
-
-      Device *linkDevice;
-      const Header *linkHeader;
-    };
-
-    /**
-     * @brief Handle a received Ethernet frame (guaranteed valid).
-     *
-     * @param data Pointer to the payload.
-     * @param dataLen Length of the payload.
-     * @param info Other information of the received frame.
-     * @return 0 on success, negative on error.
-     */
-    virtual int handle(const void *data, int dataLen, const Info &info) = 0;
+    Device *device;
+    const Header *linkHeader;
   };
 
   /**
-   * @brief Register a callback on receiving Ethernet frames.
+   * @brief Handle a receiving Ethernet frame.
    *
-   * @param callback Pointer to a `RecvCallback` object (which need to be
-   * persistent).
+   * @param buf Pointer to the payload.
+   * @param len Length of the payload.
+   * @param info Other information.
+   *
+   * @return 0 on normal, 1 to remove the handler.
    */
-  void addRecvCallback(RecvCallback *callback);
+  using RecvHandler = std::function<int(const void *data, size_t dataLen,
+                                        const RecvInfo &info)>;
+
+  /**
+   * @brief Add a handler for receiving frames.
+   *
+   * @param handler The handler.
+   * @param linkType The matched `etherType` field.
+   */
+  void addOnRecv(RecvHandler handler, uint16_t etherType);
 
   /**
    * @brief Handle a receiving frame from `NetBase`.
@@ -120,7 +110,8 @@ public:
    * @param frameLen Length of the frame.
    * @param info Other information.
    */
-  void handleRecv(const void *frame, int frameLen, const NetBase::RecvInfo &info);
+  void handleRecv(const void *frame, size_t frameLen,
+                  const NetBase::RecvInfo &info);
 
   /**
    * @brief Setup the Ethernet link layer service.
@@ -130,7 +121,7 @@ public:
   int setup();
 
 private:
-  Vector<RecvCallback *> callbacks;
+  HashMultMap<uint16_t, RecvHandler> onRecv;
 };
 
 #endif

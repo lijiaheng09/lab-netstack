@@ -11,20 +11,16 @@
 
 #include "Ethernet.h"
 
-constexpr int Ethernet::LINK_TYPE = DLT_EN10MB;
+constexpr Ethernet::Addr Ethernet::BROADCAST;
 
-constexpr Ethernet::Addr Ethernet::Addr::BROADCAST{0xFF, 0xFF, 0xFF,
-                                                   0xFF, 0xFF, 0xFF};
-
-Ethernet::Ethernet(NetBase &netBase_)
-    : netBase(netBase_) {}
+Ethernet::Ethernet(NetBase &netBase_) : netBase(netBase_) {}
 
 Ethernet::Device::Device(pcap_t *p_, const char *name_, const Addr &addr_)
     : NetBase::Device(p_, name_, LINK_TYPE), addr(addr_) {}
 
 Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
   if (netBase.findDeviceByName(name)) {
-    ERRLOG("Duplicated device: %s\n", name);
+    LOG_ERR("Duplicated device: %s", name);
     return nullptr;
   }
 
@@ -36,7 +32,7 @@ Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
   pcap_if_t *alldevs;
   rc = pcap_findalldevs(&alldevs, errbuf);
   if (rc != 0) {
-    ERRLOG("pcap_findalldevs error: %s\n", errbuf);
+    LOG_ERR("pcap_findalldevs: %s", errbuf);
     return nullptr;
   }
   for (auto *d = alldevs; d; d = d->next)
@@ -51,41 +47,41 @@ Ethernet::Device *Ethernet::addDeviceByName(const char *name) {
           }
         }
       if (!found)
-        ERRLOG("No Ethernet address: %s\n", name);
+        LOG_ERR("No Ethernet address: %s", name);
       if (found)
         break;
     }
   pcap_freealldevs(alldevs);
 
   if (!found) {
-    ERRLOG("No such Ethernet device: %s\n", name);
+    LOG_ERR("No such Ethernet device: %s", name);
     return nullptr;
   }
 
   pcap_t *p = pcap_create(name, errbuf);
   Ethernet::Device *d;
   if (!p) {
-    ERRLOG("pcap_create(device %s) error: %s\n", name, errbuf);
+    LOG_ERR("pcap_create(%s): %s", name, errbuf);
     return nullptr;
   }
   rc = pcap_set_immediate_mode(p, 1);
   if (rc != 0) {
-    ERRLOG("pcap_set_immediate(device %s) error: %s\n", name, pcap_geterr(p));
+    LOG_ERR_PCAP(p, "pcap_set_immediate(%s)", name);
     goto CLOSE;
   }
   rc = pcap_setnonblock(p, 1, errbuf);
   if (rc != 0) {
-    ERRLOG("pcap_setnonblock(device %s) error: %s\n", name, errbuf);
+    LOG_ERR("pcap_setnonblock(%s): %s", name, errbuf);
     goto CLOSE;
   }
   rc = pcap_activate(p);
   if (rc != 0) {
-    ERRLOG("pcap_activate(device %s) error: %s\n", name, pcap_geterr(p));
+    LOG_ERR_PCAP(p, "pcap_activate(%s)", name);
     goto CLOSE;
   }
   rc = pcap_setdirection(p, PCAP_D_IN);
   if (rc != 0) {
-    ERRLOG("pcap_setdirection(device %s) error: %s\n", name, pcap_geterr(p));
+    LOG_ERR_PCAP(p, "pcap_setdirection(%s)", name);
     goto CLOSE;
   }
 
@@ -125,13 +121,11 @@ int Ethernet::send(const void *data, size_t dataLen, Addr dst,
   return rc;
 }
 
-Ethernet::RecvCallback::RecvCallback(int etherType_) : etherType(etherType_) {}
-
-void Ethernet::addRecvCallback(RecvCallback *callback) {
-  callbacks.push_back(callback);
+void Ethernet::addOnRecv(RecvHandler handler, uint16_t etherType) {
+  onRecv.insert({etherType, handler});
 }
 
-void Ethernet::handleRecv(const void *frame, int frameLen,
+void Ethernet::handleRecv(const void *frame, size_t frameLen,
                           const NetBase::RecvInfo &info) {
   auto *device = dynamic_cast<Ethernet::Device *>(info.device);
   if (!device) {
@@ -140,30 +134,30 @@ void Ethernet::handleRecv(const void *frame, int frameLen,
   }
 
   if (frameLen < sizeof(Header)) {
-    LOG_INFO("Truncated Ethernet header on device %s: %d/%d", device->name,
-             frameLen, (int)sizeof(Header));
+    LOG_INFO("Truncated Ethernet header on device %s: %lu/%lu", device->name,
+             frameLen, sizeof(Header));
     return;
   }
 
   const Header &header = *(const Header *)frame;
-  Ethernet::RecvCallback::Info newInfo {
-    .timestamp = info.timestamp,
-    .linkDevice = device,
-    .linkHeader = &header
-  };
+  const void *data = &header + 1;
+  size_t dataLen = frameLen - sizeof(Header);
+  Ethernet::RecvInfo newInfo{
+      .timestamp = info.timestamp, .device = device, .linkHeader = &header};
 
-  uint16_t etherType = ntohs(header.etherType);
-  int rc = 0;
-  for (auto *c : callbacks)
-    if (c->etherType == -1 || c->etherType == etherType)
-      if (c->handle(&header + 1, frameLen - sizeof(Header), newInfo) != 0)
-        rc = -1;
+  auto r = onRecv.equal_range(ntohs(header.etherType));
+  for (auto it = r.first; it != r.second;) {
+    if (it->second(data, dataLen, newInfo) == 1)
+      it = onRecv.erase(it);
+    else
+      it++;
+  }
 }
 
 int Ethernet::setup() {
   netBase.addOnRecv(
-      [this](const void *buf, int len, const NetBase::RecvInfo &info) -> int {
-        handleRecv(buf, len, info);
+      [this](auto &&...args) -> int {
+        handleRecv(args...);
         return 0;
       },
       LINK_TYPE);

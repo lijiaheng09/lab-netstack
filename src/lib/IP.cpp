@@ -17,8 +17,7 @@ constexpr IP::Addr IP::Addr::BROADCAST{255, 255, 255, 255};
 constexpr IP::Addr IP::Addr::MASK_HOST{255, 255, 255, 255};
 
 IP::IP(LinkLayer &linkLayer_)
-    : linkLayer(linkLayer_), routing(nullptr), linkLayerHandler(*this),
-      icmp(*(new ICMP(*this))) {}
+    : linkLayer(linkLayer_), routing(nullptr), icmp(*(new ICMP(*this))) {}
 
 IP::~IP() {
   delete &icmp;
@@ -101,8 +100,8 @@ int IP::sendPacketWithHeader(void *packet, int packetLen, SendOptions options) {
   for (auto &&e : addrs)
     if (header.dst == Addr::BROADCAST || header.dst == (e.addr | ~e.mask)) {
       isBroadcast = true;
-      if (linkLayer.send(packet, packetLen, LinkLayer::Addr::BROADCAST,
-                         PROTOCOL_ID, e.device) != 0) {
+      if (linkLayer.send(packet, packetLen, LinkLayer::BROADCAST, PROTOCOL_ID,
+                         e.device) != 0) {
         rc = -1;
       }
     }
@@ -202,30 +201,23 @@ void IP::addRecvCallback(RecvCallback *callback) {
   callbacks.push_back(callback);
 }
 
-int IP::setup() {
-  linkLayer.addRecvCallback(&linkLayerHandler);
-  return icmp.setup();
-}
-
-IP::LinkLayerHandler::LinkLayerHandler(IP &ip_)
-    : LinkLayer::RecvCallback(PROTOCOL_ID), ip(ip_) {}
-
-int IP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
-                                 const Info &info) {
+void IP::handleRecv(const void *packet, size_t packetCapLen,
+                    const LinkLayer::RecvInfo &info) {
   if (packetCapLen < sizeof(Header)) {
-    ERRLOG("Truncated IP header: %d/%d\n", packetCapLen, (int)sizeof(Header));
-    return -1;
+    ERRLOG("Truncated IP header: %lu/%lu\n", packetCapLen, sizeof(Header));
+    return;
   }
   const Header &header = *(const Header *)packet;
-  int hdrLen = (header.versionAndIHL & 0x0f) * 4;
-  int packetLen = ntohs(header.totalLength);
+  size_t hdrLen = (header.versionAndIHL & 0x0f) * 4;
+  size_t packetLen = ntohs(header.totalLength);
   if (packetCapLen < packetLen || packetLen < hdrLen) {
-    ERRLOG("Truncated IP packet: %d/%d:%d\n", packetCapLen, hdrLen, packetLen);
-    return -1;
+    ERRLOG("Truncated IP packet: %lu/%lu:%lu\n", packetCapLen, hdrLen,
+           packetLen);
+    return;
   }
   if (calcInternetChecksum16(&header, hdrLen) != 0) {
     ERRLOG("IP Checksum error\n");
-    return -1;
+    return;
   }
 
   IP::RecvCallback::Info newInfo(info);
@@ -234,10 +226,10 @@ int IP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
   bool isBroadcast = false;
 
   if (header.dst == Addr::BROADCAST) {
-    endDevice = info.linkDevice;
+    endDevice = info.device;
     isBroadcast = true;
   } else {
-    for (auto &&e : ip.addrs)
+    for (auto &&e : addrs)
       if (header.dst == (e.addr | ~e.mask)) {
         endDevice = e.device;
         isBroadcast = true;
@@ -246,7 +238,7 @@ int IP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
   }
 
   if (!isBroadcast)
-    endDevice = ip.findDeviceByAddr(header.dst);
+    endDevice = findDeviceByAddr(header.dst);
   newInfo.netHeader = &header;
   newInfo.isBroadcast = isBroadcast;
   newInfo.endDevice = endDevice;
@@ -256,12 +248,21 @@ int IP::LinkLayerHandler::handle(const void *packet, int packetCapLen,
 
   int protocol = header.protocol;
   int rc = 0;
-  for (auto *c : ip.callbacks)
+  for (auto *c : callbacks)
     if (c->promiscuous || endDevice) {
       if (c->protocol == -1 || c->protocol == protocol) {
         if (c->handle(data, dataLen, newInfo) != 0)
           rc = -1;
       }
     }
-  return rc;
+}
+
+int IP::setup() {
+  linkLayer.addOnRecv(
+      [this](auto &&...args) -> int {
+        handleRecv(args...);
+        return 0;
+      },
+      PROTOCOL_ID);
+  return icmp.setup();
 }

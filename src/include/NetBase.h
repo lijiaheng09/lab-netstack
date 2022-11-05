@@ -17,6 +17,7 @@ public:
 
   class Device {
     struct pcap *p;
+    friend class NetBase;
 
   public:
     const char *const name; // Name of the device.
@@ -25,8 +26,6 @@ public:
     Device(struct pcap *p_, const char *name_, int linkType_);
     Device(const Device &) = delete;
     virtual ~Device();
-
-    friend class NetBase;
   };
 
   /**
@@ -75,9 +74,9 @@ public:
    * @brief Add a handler for receiving frames.
    *
    * @param handler The handler.
-   * @param linkType The matched link-layer header type, -1 for any.
+   * @param linkType The matched link-layer header type.
    */
-  void addOnRecv(RecvHandler handler, int linkType = -1);
+  void addOnRecv(RecvHandler handler, int linkType);
 
   /**
    * @brief Handle a receiving frame.

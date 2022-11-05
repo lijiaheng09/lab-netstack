@@ -36,8 +36,8 @@ public:
     return ret;
   }
 
-  static constexpr int ETHER_TYPE_CTRL = 0x88B5;
-  static constexpr int ETHER_TYPE_DATA = 0x88B6;
+  static constexpr uint16_t ETHER_TYPE_CTRL = 0x88B5;
+  static constexpr uint16_t ETHER_TYPE_DATA = 0x88B6;
 
   static constexpr int MSG_LEN = 75;
   static constexpr char HELO[MSG_LEN] =
@@ -64,15 +64,14 @@ public:
     std::thread *sendThread;
   };
 
-  class CtrlHandler : public Ethernet::RecvCallback {
+  class CtrlHandler {
     Link &link;
 
   public:
-    CtrlHandler(Link &link_)
-        : Ethernet::RecvCallback(ETHER_TYPE_CTRL), link(link_) {}
+    CtrlHandler(Link &link_) : link(link_) {}
 
-    int handle(const void *data, int dataLen, const Info &info) {
-      if (info.linkDevice != link.device || dataLen != MSG_LEN)
+    int handle(const void *data, int dataLen, const Ethernet::RecvInfo &info) {
+      if (info.device != link.device || dataLen != MSG_LEN)
         return 0;
 
       bool start = false;
@@ -98,15 +97,14 @@ public:
     }
   };
 
-  class DataHandler : public Ethernet::RecvCallback {
+  class DataHandler {
     Link &link;
 
   public:
-    DataHandler(Link &link_)
-        : Ethernet::RecvCallback(ETHER_TYPE_DATA), link(link_) {}
+    DataHandler(Link &link_) : link(link_) {}
 
-    int handle(const void *data, int dataLen, const Info &info) {
-      if (info.linkDevice != link.device || dataLen != sizeof(LongNum))
+    int handle(const void *data, int dataLen, const Ethernet::RecvInfo &info) {
+      if (info.device != link.device || dataLen != sizeof(LongNum))
         return 0;
 
       const LongNum &v = *(const LongNum *)data;
@@ -135,7 +133,7 @@ public:
       l->recvNum = 0;
       l->ctrlHandler = new CtrlHandler(*l);
       l->dataHandler = new DataHandler(*l);
-      l->dst = Ethernet::Addr::BROADCAST;
+      l->dst = Ethernet::BROADCAST;
       l->start.lock();
       l->stop.lock();
       links.push_back(l);
@@ -153,8 +151,18 @@ public:
         std::mt19937 rnd(seed);
 
         INVOKE({
-          ethernet.addRecvCallback(l->ctrlHandler);
-          ethernet.addRecvCallback(l->dataHandler);
+          ethernet.addOnRecv(
+              [l](auto &&...args) -> int {
+                l->ctrlHandler->handle(args...);
+                return 0;
+              },
+              ETHER_TYPE_CTRL);
+          ethernet.addOnRecv(
+              [l](auto &&...args) -> int {
+                l->dataHandler->handle(args...);
+                return 0;
+              },
+              ETHER_TYPE_DATA);
         });
 
         while (!l->start.try_lock_for(1s)) {
@@ -177,8 +185,9 @@ public:
           std::this_thread::sleep_for(1ms);
         }
 
-        INVOKE(
-            { ethernet.send(STOP, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device); })
+        INVOKE({
+          ethernet.send(STOP, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device);
+        })
 
         l->stop.lock();
       });

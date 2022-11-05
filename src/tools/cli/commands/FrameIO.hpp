@@ -53,13 +53,14 @@ public:
 };
 
 class CmdCaptureFrames : public Command {
+  /*
   class Handler : public Ethernet::RecvCallback {
   public:
     Handler() : Ethernet::RecvCallback(-1) {}
 
     int handle(const void *data, int dataLen, const Info &info) override {
       int etherType = ntohs(info.linkHeader->etherType);
-      printf("Data length %d from device %s\n", dataLen, info.linkDevice->name);
+      printf("Data length %d from device %s\n", dataLen, info.device->name);
       printf("    dst " ETHERNET_ADDR_FMT_STRING
              ", src " ETHERNET_ADDR_FMT_STRING ", ethtype 0x%04X\n",
              ETHERNET_ADDR_FMT_ARGS(info.linkHeader->dst),
@@ -68,12 +69,13 @@ class CmdCaptureFrames : public Command {
       return 0;
     }
   } handler;
+  */
 
 public:
   CmdCaptureFrames() : Command("capture-frames") {}
 
   int main(int argc, char **argv) override {
-    INVOKE({ ethernet.addRecvCallback(&handler); })
-    return 0;
+    fprintf(stderr, "Not implemented.\n");
+    return 1;
   }
 };

@@ -43,15 +43,7 @@ void NetBase::addOnRecv(RecvHandler handler, int linkType) {
 }
 
 void NetBase::handleRecv(const void *buf, size_t len, const RecvInfo &info) {
-  auto r = onRecv.equal_range(-1);
-  for (auto it = r.first; it != r.second;) {
-    if (it->second(buf, len, info) == 1)
-      it = onRecv.erase(it);
-    else
-      it++;
-  }
-
-  r = onRecv.equal_range(info.device->linkType);
+  auto r = onRecv.equal_range(info.device->linkType);
   for (auto it = r.first; it != r.second;) {
     if (it->second(buf, len, info) == 1)
       it = onRecv.erase(it);

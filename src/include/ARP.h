@@ -64,7 +64,7 @@ public:
 
   /**
    * @brief Match for link layer address.
-   * 
+   *
    * @param netAddr The target.
    * @param linkAddr The result.
    * @param waitingCallback callback after waiting, when E_WAIT_FOR_TRYAGAIN returns.
@@ -86,13 +86,7 @@ private:
 
   Vector<WaitingInfo> waiting;
 
-  class LinkLayerHandler : public LinkLayer::RecvCallback {
-    ARP &arp;
-
-  public:
-    LinkLayerHandler(ARP &arp_);
-    int handle(const void *packet, int packetCapLen, const Info &info) override;
-  } linkLayerHandler;
+  void handleRecv(const void *packet, int packetCapLen, const LinkLayer::RecvInfo &info);
 };
 
 #endif
