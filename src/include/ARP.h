@@ -25,7 +25,7 @@ public:
   static constexpr uint16_t OP_REQUEST = 1;
   static constexpr uint16_t OP_RESPONSE = 2;
 
-  static constexpr time_t EXPIRE_CYCLE = 1200;
+  static constexpr Timer::Duration EXPIRE_CYCLE = 1200s;
 
   struct Packet {
     uint16_t hrd; // Hardware address space.
@@ -39,6 +39,7 @@ public:
     L3::Addr tpa; // Protocol address of target.
   } __attribute__((packed));
 
+  NetBase &netBase;
   L2 &l2;
   L3 &l3;
 
@@ -67,9 +68,9 @@ public:
    *
    * @param addr The L3 target of query.
    * @param handler The handler after waiting.
-   * @param timeout The waiting timeout (TODO).
+   * @param timeout The waiting timeout.
    */
-  void addWait(L3::Addr addr, WaitHandler handler, time_t timeout = 60);
+  void addWait(L3::Addr addr, WaitHandler handler, Timer::Duration timeout = 60s);
 
   /**
    * @brief Setup the RIP service.
@@ -80,7 +81,7 @@ public:
 
   struct TabEntry {
     L2::Addr linkAddr;
-    time_t expireTime;
+    Timer::Task *expire;
   };
 
   const HashMap<L3::Addr, TabEntry> &getTable();
@@ -90,7 +91,7 @@ private:
 
   struct WaitingEntry {
     WaitHandler handler;
-    time_t timeoutTime;
+    Timer::Task *expire;
   };
 
   HashMultiMap<L3::Addr, WaitingEntry> waiting;

@@ -207,9 +207,9 @@ public:
    *
    * @param dst The destination of sending.
    * @param handler The handler after waiting.
-   * @param timeout The waiting timeout (TODO).
+   * @param timeout The waiting timeout.
    */
-  int addWait(Addr dst, WaitHandler handler, time_t timeout = 60);
+  int addWait(Addr dst, WaitHandler handler, Timer::Duration timeout = 60s);
 
   struct RecvInfo {
     L2::RecvInfo l2;       // The L2 `RecvInfo`

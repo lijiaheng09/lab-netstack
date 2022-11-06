@@ -4,7 +4,7 @@
 
 #include "log.h"
 
-ARP::ARP(L2 &l2_, L3 &l3_) : l2(l2_), l3(l3_) {}
+ARP::ARP(L2 &l2_, L3 &l3_) : netBase(l2_.netBase), l2(l2_), l3(l3_) {}
 
 const HashMap<ARP::L3::Addr, ARP::TabEntry> &ARP::getTable() {
   return table;
@@ -35,10 +35,6 @@ int ARP::query(L3::Addr target, L2::Addr &res) {
   auto p = table.find(target);
   if (p != table.end()) {
     res = p->second.linkAddr;
-    if (curTime >= p->second.expireTime) {
-      table.erase(p);
-      sendRequest(target);
-    }
     return 0;
   }
   int rc = sendRequest(target);
@@ -47,14 +43,17 @@ int ARP::query(L3::Addr target, L2::Addr &res) {
   return E_WAIT_FOR_TRYAGAIN;
 }
 
-void ARP::addWait(L3::Addr addr, WaitHandler handler, time_t timeout) {
+void ARP::addWait(L3::Addr addr, WaitHandler handler, Timer::Duration timeout) {
   if (table.count(addr)) {
     handler(true);
   } else {
-    sendRequest(addr);
-    waiting.insert(
-        {addr, WaitingEntry{.handler = handler,
-                            .timeoutTime = time(nullptr) + timeout}});
+    auto it = waiting.insert({addr, WaitingEntry{.handler = handler}});
+    it->second.expire = l2.netBase.timer.add(
+        [this, it]() {
+          it->second.handler(false);
+          waiting.erase(it);
+        },
+        timeout);
   }
 }
 
@@ -93,11 +92,20 @@ void ARP::handleRecv(const void *buf, size_t len, const L2::RecvInfo &info) {
 
     } else if (packet.op == htons(OP_RESPONSE)) {
       time_t curTime = time(nullptr);
-      table[packet.spa] = {.linkAddr = packet.sha,
-                           .expireTime = curTime + EXPIRE_CYCLE};
+      auto it = table.find(packet.spa);
+      if (it != table.end()) {
+        if (it->second.expire)
+          netBase.timer.remove(it->second.expire);
+      } else {
+        it = table.insert({packet.spa, {}}).first;
+      }
+      it->second = {.linkAddr = packet.sha,
+                    .expire = netBase.timer.add(
+                        [this, it]() { table.erase(it); }, EXPIRE_CYCLE)};
       auto r = waiting.equal_range(packet.spa);
       for (auto it = r.first; it != r.second; it++) {
         it->second.handler(true);
+        netBase.timer.remove(it->second.expire);
       }
       waiting.erase(r.first, r.second);
     }

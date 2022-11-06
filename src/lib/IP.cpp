@@ -166,7 +166,7 @@ int IP::send(const void *data, size_t dataLen, Addr src, Addr dst,
   return rc;
 }
 
-int IP::addWait(Addr dst, WaitHandler handler, time_t timeout) {
+int IP::addWait(Addr dst, WaitHandler handler, Timer::Duration timeout) {
   if (!routing) {
     LOG_ERR("No IP routing policy.");
     return -1;

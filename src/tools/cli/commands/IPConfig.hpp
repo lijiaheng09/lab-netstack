@@ -163,7 +163,9 @@ public:
         printf(IP_ADDR_FMT_STRING " | " ETHERNET_ADDR_FMT_STRING " | %+ld\n",
                IP_ADDR_FMT_ARGS(e.first),
                ETHERNET_ADDR_FMT_ARGS(e.second.linkAddr),
-               e.second.expireTime - curTime);
+               e.second.expire
+                   ? (e.second.expire->expireTime - Timer::Clock::now()) / 1s
+                   : 0xffffffffL);
       }
     });
     return 0;
