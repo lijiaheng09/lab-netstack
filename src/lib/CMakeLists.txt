@@ -17,6 +17,7 @@ add_library(lab-netstack
   LpmRouting.cpp
   UDP.cpp
   RIP.cpp
+  TCP.cpp
 
   NetStackSimple.cpp
   NetStackFull.cpp

@@ -83,9 +83,9 @@ int IP::sendWithHeader(void *packet, size_t packetLen, SendOptions options) {
   }
 
   header.headerChecksum = 0;
-  header.headerChecksum = calcInternetChecksum16(&header, hdrLen);
+  header.headerChecksum = csum16(&header, hdrLen);
 #ifdef NETSTACK_DEBUG
-  assert(calcInternetChecksum16(&header, hdrLen) == 0);
+  assert(csum16(&header, hdrLen) == 0);
 #endif
 
   int rc = 0;
@@ -204,8 +204,8 @@ void IP::handleRecv(const void *packet, size_t packetCapLen,
              packetLen);
     return;
   }
-  if (calcInternetChecksum16(&header, hdrLen) != 0) {
-    LOG_INFO("IP Checksum error\n");
+  if (csum16(&header, hdrLen) != 0) {
+    LOG_INFO("IP checksum error");
     return;
   }
 

@@ -34,12 +34,12 @@ template <typename K, typename V>
 using HashMultiMap = std::unordered_multimap<K, V, Hash<K>>;
 
 /**
- * @brief Calculate the 16-bit Internet checksum.
+ * @brief Calculate the 16-bit checksum.
  *
  * @param data Pointer to the data to be checksummed.
  * @param len Length of the data.
  * @return The checksum of the data, in network endian.
  */
-uint16_t calcInternetChecksum16(const void *data, int len);
+uint16_t csum16(const void *data, size_t len, uint16_t init = 0);
 
 #endif

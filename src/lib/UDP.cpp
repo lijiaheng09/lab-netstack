@@ -51,9 +51,9 @@ int UDP::sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
     checksum : 0
   };
   memcpy(&header + 1, data, dataLen);
-  header.checksum = calcInternetChecksum16(buf, bufLen);
+  header.checksum = csum16(buf, bufLen);
 #ifdef NETSTACK_DEBUG
-  assert(calcInternetChecksum16(buf, bufLen) == 0);
+  assert(csum16(buf, bufLen) == 0);
 #endif
 
   int rc = l3.send(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});

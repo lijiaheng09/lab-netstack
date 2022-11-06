@@ -39,9 +39,9 @@ int ICMP::sendTimeExceeded(const void *orig, int origLen,
   Header &header = *(Header *)msg;
   header = Header{type : 11, code : 0, checksum : 0, 0};
   memcpy(&header + 1, orig, backLen);
-  header.checksum = calcInternetChecksum16(msg, msgLen);
+  header.checksum = csum16(msg, msgLen);
 #ifdef NETSTACK_DEBUG
-  assert(calcInternetChecksum16(msg, msgLen) == 0);
+  assert(csum16(msg, msgLen) == 0);
 #endif
 
   rc = ip.send(msg, msgLen, src, origHeader.src, PROTOCOL_ID,
@@ -78,9 +78,9 @@ int ICMP::sendEchoOrReply(const IP::Addr &src, const IP::Addr &dst, int type,
     seqNumber : ntohs(seqNumber)
   };
   memcpy(&header + 1, data, dataLen);
-  header.checksum = calcInternetChecksum16(msg, msgLen);
+  header.checksum = csum16(msg, msgLen);
 #ifdef NETSTACK_DEBUG
-  assert(calcInternetChecksum16(msg, msgLen) == 0);
+  assert(csum16(msg, msgLen) == 0);
 #endif
 
   int rc = ip.send(msg, msgLen, src, dst, PROTOCOL_ID, options);
@@ -137,9 +137,9 @@ void ICMP::handleRecv(const void *msg, size_t msgLen,
       Header &replyHeader = *(Header *)reply;
       replyHeader.type = 0;
       replyHeader.checksum = 0;
-      replyHeader.checksum = calcInternetChecksum16(reply, msgLen);
+      replyHeader.checksum = csum16(reply, msgLen);
 #ifdef NETSTACK_DEBUG
-      assert(calcInternetChecksum16(reply, msgLen) == 0);
+      assert(csum16(reply, msgLen) == 0);
 #endif
 
       rc = ip.send(
