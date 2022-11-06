@@ -2,9 +2,12 @@
 #define NETSTACK_NET_STACK_H
 
 #include <functional>
+#include <atomic>
+#include <mutex>
+#include <shared_mutex>
 
 #include "utils.h"
-#include "LoopDispatcher.h"
+#include "TaskDispatcher.h"
 
 /**
  * @brief Base of the netstack, handling sending & receiving of pcap devices.
@@ -12,6 +15,8 @@
  */
 class NetBase {
 public:
+  TaskDispatcher dispatcher;
+
   NetBase() = default;
   NetBase(const NetBase &) = delete;
 
@@ -95,24 +100,38 @@ public:
   int setup();
 
   /**
+   * @brief Handle an iteration.
+   *
+   * @return 0 on normal, negative on error, positive to break the loop.
+   */
+  using IterHandler = std::function<void()>;
+
+  /**
    * @brief Register a callback in `loop`.
    *
-   * @param callback Pointer to an `Action` object to be invoked (which need to
-   * be persistent).
+   * @deprecated
+   * @param handler The handler.
    */
-  void addLoopCallback(LoopCallback *callback);
+  void addOnIter(IterHandler handler);
 
   /**
    * @brief Start to loop for receiving.
    *
-   * @return 0 if breaked by callback, negative on error.
+   * @return 0 if breaked normally, negative on error.
    */
   int loop();
+
+  /**
+   * @brief Asynchronously break the loop.
+   */
+  void asyncBreakLoop();
 
 private:
   Vector<Device *> devices;
   HashMultiMap<int, RecvHandler> onRecv;
-  Vector<LoopCallback *> loopCallbacks;
+  Vector<IterHandler> onIter;
+
+  std::atomic<bool> breaking;
 };
 
 #endif

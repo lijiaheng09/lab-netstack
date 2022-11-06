@@ -5,8 +5,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DNETSTACK_DEBUG")
 
 add_library(lab-netstack
   utils.cpp
-  LoopDispatcher.cpp
-  
+  TaskDispatcher.cpp
+
   NetBase.cpp
   Ethernet.cpp
   IP.cpp

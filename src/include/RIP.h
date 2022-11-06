@@ -91,14 +91,7 @@ private:
 
   void handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info);
 
-  class LoopHandler : public LoopCallback {
-    RIP &rip;
-
-  public:
-    LoopHandler(RIP &rip_);
-
-    int handle() override;
-  } loopHandler;
+  int handleIter();
 };
 
 #endif

@@ -15,7 +15,7 @@ constexpr int RIP::METRIC_INF = 16;
 RIP::RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_)
     : udp(udp_), network(network_), netBase(netBase_),
       updateCycle(30), expireCycle(180), cleanCycle(120), updateTime(0),
-      isUp(false), matchTable(), loopHandler(*this) {}
+      isUp(false), matchTable() {}
 
 int RIP::setup() {
   if (isUp) {
@@ -29,7 +29,9 @@ int RIP::setup() {
         return 0;
       },
       UDP_PORT);
-  netBase.addLoopCallback(&loopHandler);
+  netBase.addOnIter([this]() -> int {
+    return handleIter();
+  });
   sendRequest();
   sendUpdate();
   return 0;
@@ -199,26 +201,24 @@ void RIP::handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info) 
     sendUpdate();
 }
 
-RIP::LoopHandler::LoopHandler(RIP &rip_) : rip(rip_) {}
-
-int RIP::LoopHandler::handle() {
+int RIP::handleIter() {
   time_t curTime = time(nullptr);
-  for (auto it = rip.table.begin(); it != rip.table.end();) {
+  for (auto it = table.begin(); it != table.end();) {
     auto &e = *it;
     if (e.second.expireTime) {
       if (curTime > e.second.expireTime) {
-        rip.matchTable.delEntry(it->first.addr, it->first.mask);
+        matchTable.delEntry(it->first.addr, it->first.mask);
         e.second.metric = METRIC_INF;
       }
-      if (curTime - e.second.expireTime > rip.cleanCycle) {
-        it = rip.table.erase(it);
+      if (curTime - e.second.expireTime > cleanCycle) {
+        it = table.erase(it);
         continue;
       }
     }
     it++;
   }
-  if (curTime >= rip.updateTime) {
-    rip.sendUpdate();
+  if (curTime >= updateTime) {
+    sendUpdate();
   }
   return 0;
 }

@@ -78,8 +78,8 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
   args.netBase->handleRecv(bytes, h->len, info);
 }
 
-void NetBase::addLoopCallback(LoopCallback *callback) {
-  loopCallbacks.push_back(callback);
+void NetBase::addOnIter(IterHandler handler) {
+  onIter.push_back(handler);
 }
 
 int NetBase::loop() {
@@ -89,20 +89,23 @@ int NetBase::loop() {
       int rc = pcap_dispatch(d->p, -1, handlePcap, (u_char *)&args);
       if (rc < 0) {
         if (rc == PCAP_ERROR)
-          ERRLOG("pcap_dispatch (device %s) error: %s\n", d->name,
-                 pcap_geterr(d->p));
+          LOG_ERR_PCAP(d->p, "pcap_dispatch(%s)", d->name);
         return rc;
       }
     }
 
-    for (auto *c : loopCallbacks) {
-      int rc = c->handle();
-      if (rc < 0)
-        return rc;
-      else if (rc > 0)
-        return 0;
+    dispatcher.handle();
+
+    for (auto &&h : onIter)
+      h();
+
+    if (breaking.load()) {
+      break;
     }
   }
-
   return 0;
+}
+
+void NetBase::asyncBreakLoop() {
+  breaking.store(true);
 }

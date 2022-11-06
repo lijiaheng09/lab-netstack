@@ -6,11 +6,10 @@
 Ethernet::Device *findDeviceByName(const char *name);
 
 template <typename TFunc> void invoke(TFunc f) {
-  auto task = LoopCallback::wrap([f]() -> int {
+  netBase.dispatcher.invoke([f]() -> int {
     f();
     return 0;
   });
-  loopDispatcher.invoke(&task);
 }
 
 #define INVOKE(body) invoke([&]() body);

@@ -3,8 +3,6 @@
 
 #include <thread>
 
-#include "LoopDispatcher.h"
-
 #include "NetBase.h"
 #include "Ethernet.h"
 #include "IP.h"
@@ -25,7 +23,6 @@ extern RIP ripRouting;
 extern IPForward ipForward;
 
 extern std::thread *netThread;
-extern LoopDispatcher loopDispatcher;
 
 /**
  * @brief Initialize the netstack.

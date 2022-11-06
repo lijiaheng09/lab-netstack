@@ -5,11 +5,15 @@
 
 #include <vector>
 #include <list>
+#include <queue>
 #include <unordered_map>
 
 template <typename T> using Vector = std::vector<T>;
 
 template <typename T> using List = std::list<T>;
+
+template <typename T> using Queue = std::queue<T>;
+
 template <typename T> class Hash {
   static constexpr size_t SEED = 257;
 

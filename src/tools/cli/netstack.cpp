@@ -12,7 +12,6 @@ RIP ripRouting(udp, ip, netBase);
 IPForward ipForward(ip);
 
 std::thread *netThread = nullptr;
-LoopDispatcher loopDispatcher;
 
 static std::mutex *loopRunning;
 
@@ -50,15 +49,13 @@ int initNetStack() {
   }
 
   ip.setRouting(&staticRouting);
-  netBase.addLoopCallback(&loopDispatcher);
 
   return startLoop();
 }
 
 void stopLoop() {
   if (netThread) {
-    auto task = LoopCallback::wrap([]() -> int { return 1; });
-    loopDispatcher.invoke(&task);
+    netBase.asyncBreakLoop();
     netThread->join();
     delete netThread;
     netThread = nullptr;
