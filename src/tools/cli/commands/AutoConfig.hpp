@@ -66,9 +66,11 @@ public:
       pcap_freealldevs(allDevs);
 
       if (route) {
-        ripRouting.updateCycle = updateCycle;
-        ripRouting.expireCycle = expireCycle;
-        ripRouting.cleanCycle = cleanCycle;
+        ripRouting.setCycles(
+          updateCycle * 1s,
+          expireCycle * 1s,
+          cleanCycle * 1s
+        );
         if (ripRouting.setup() != 0) {
           fprintf(stderr, "Error setting up RIP routing.\n");
           rc = 1;

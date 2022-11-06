@@ -78,10 +78,6 @@ static void handlePcap(u_char *user, const pcap_pkthdr *h,
   args.netBase->handleRecv(bytes, h->len, info);
 }
 
-void NetBase::addOnIter(IterHandler handler) {
-  onIter.push_back(handler);
-}
-
 int NetBase::loop() {
   while (1) {
     for (auto *d : devices) {
@@ -95,10 +91,7 @@ int NetBase::loop() {
     }
 
     dispatcher.handle();
-
-    for (auto &&h : onIter)
-      h();
-
+    timer.handle();
     if (breaking.load()) {
       break;
     }

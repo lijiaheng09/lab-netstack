@@ -40,9 +40,7 @@ public:
             IP_ADDR_FMT_NUM ||
         sscanf(argv[4], IP_ADDR_FMT_STRING, IP_ADDR_FMT_ARGS(&entry.gateway)) !=
             IP_ADDR_FMT_NUM) {
-      fprintf(stderr,
-              "usage: %s <ip> <mask> <device> <gateway> [<metric>] "
-              "[<expire-time>]\n",
+      fprintf(stderr, "usage: %s <ip> <mask> <device> <gateway> [<metric>]\n",
               argv[0]);
       return 1;
     }
@@ -55,18 +53,12 @@ public:
     if (ip.getRouting() == &staticRouting) {
       INVOKE({ rc = staticRouting.setEntry(entry); })
     } else if (ip.getRouting() == &ripRouting) {
-      RIP::TabEntry rentry{
-        device : entry.device,
-        gateway : entry.gateway,
-        metric : 1,
-        expireTime : 0
-      };
+      RIP::TabEntry rentry{.device = entry.device,
+                           .gateway = entry.gateway,
+                           .metric = 1,
+                           .expire = nullptr};
       if (argc >= 6 && sscanf(argv[5], "%d", &rentry.metric) != 1) {
         fprintf(stderr, "Invalid metric.\n");
-        return 1;
-      }
-      if (argc >= 7 && sscanf(argv[6], "%ld", &rentry.expireTime) != 1) {
-        fprintf(stderr, "Invalid expire time.\n");
         return 1;
       }
       INVOKE({ rc = ripRouting.setEntry(entry.addr, entry.mask, rentry); })
@@ -130,7 +122,10 @@ public:
                                   " | %d | %+ld\n",
                IP_ADDR_FMT_ARGS(e.first.addr), IP_ADDR_FMT_ARGS(e.first.mask),
                e.second.device->name, IP_ADDR_FMT_ARGS(e.second.gateway),
-               e.second.metric, e.second.expireTime - curTime);
+               e.second.metric,
+               e.second.expire
+                   ? (e.second.expire->expireTime - Timer::Clock::now()) / 1s
+                   : 0xffffffffL);
       }
     })
     return 0;
@@ -148,7 +143,8 @@ public:
       time_t curTime = time(nullptr);
       for (auto &&e : table) {
         printf(IP_ADDR_FMT_STRING " | " ETHERNET_ADDR_FMT_STRING " | %+ld\n",
-               IP_ADDR_FMT_ARGS(e.first), ETHERNET_ADDR_FMT_ARGS(e.second.linkAddr),
+               IP_ADDR_FMT_ARGS(e.first),
+               ETHERNET_ADDR_FMT_ARGS(e.second.linkAddr),
                e.second.expireTime - curTime);
       }
     });

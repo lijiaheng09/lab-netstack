@@ -6,6 +6,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DNETSTACK_DEBUG")
 add_library(lab-netstack
   utils.cpp
   TaskDispatcher.cpp
+  Timer.cpp
 
   NetBase.cpp
   Ethernet.cpp

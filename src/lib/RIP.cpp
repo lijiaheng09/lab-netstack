@@ -13,9 +13,9 @@ constexpr int RIP::ADDRESS_FAMILY = 2;
 constexpr int RIP::METRIC_INF = 16;
 
 RIP::RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_)
-    : udp(udp_), network(network_), netBase(netBase_),
-      updateCycle(30), expireCycle(180), cleanCycle(120), updateTime(0),
-      isUp(false), matchTable() {}
+    : udp(udp_), network(network_), netBase(netBase_), updateCycle(30s),
+      expireCycle(180s), cleanCycle(120s), isUp(false), matchTable(),
+      updateTask(nullptr) {}
 
 int RIP::setup() {
   if (isUp) {
@@ -29,9 +29,8 @@ int RIP::setup() {
         return 0;
       },
       UDP_PORT);
-  netBase.addOnIter([this]() -> int {
-    return handleIter();
-  });
+  updateTask =
+      netBase.timer.add([this]() { handleUpdateTimer(); }, updateCycle);
   sendRequest();
   sendUpdate();
   return 0;
@@ -74,8 +73,6 @@ int RIP::sendRequest() {
 int RIP::sendUpdate() {
   time_t curTime = time(nullptr);
 
-  updateTime = curTime + updateCycle;
-
   UDP::L3::Addr srcAddr;
   if (udp.l3.getAnyAddr(nullptr, srcAddr) < 0) {
     ERRLOG("No IP address on the host.\n");
@@ -84,8 +81,12 @@ int RIP::sendUpdate() {
 
   const auto &netAddrs = network.getAddrs();
   for (auto &&e : netAddrs) {
-    table[{e.addr & e.mask, e.mask}] =
-        {device : e.device, gateway : {0}, metric : 0, expireTime : 0};
+    auto it = table.find({e.addr & e.mask, e.mask});
+    if (it != table.end() && it->second.expire) {
+      netBase.timer.remove(it->second.expire);
+    }
+    table[{e.addr & e.mask, e.mask}] = {
+        .device = e.device, .gateway = {0}, .metric = 0, .expire = nullptr};
     matchTable.setEntry({
       addr : e.addr & e.mask,
       mask : e.mask,
@@ -125,7 +126,21 @@ const RIP::Table &RIP::getTable() {
   return table;
 }
 
-void RIP::handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info) {
+void RIP::setCycles(Timer::Duration updateCycle_, Timer::Duration expireCycle_,
+                    Timer::Duration cleanCycle_) {
+  updateCycle = updateCycle_;
+  expireCycle = expireCycle_;
+  cleanCycle = cleanCycle_;
+  if (updateTask) {
+    netBase.timer.remove(updateTask);
+    updateTask =
+        netBase.timer.add([this]() { handleUpdateTimer(); }, updateCycle);
+    sendUpdate();
+  }
+}
+
+void RIP::handleRecv(const void *msg, size_t msgLen,
+                     const UDP::RecvInfo &info) {
   if (msgLen < sizeof(Header)) {
     LOG_ERR("Truncated RIP header: %lu/%lu\n", msgLen, sizeof(Header));
     return;
@@ -177,12 +192,23 @@ void RIP::handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info) 
     }
 
     if (updateEnt) {
-      table[{e.address, e.mask}] = TabEntry{
-        device : info.l2.device,
-        gateway : info.l3.header->src,
-        metric : metric,
-        expireTime : curTime + expireCycle
-      };
+      auto it = table.find({e.address, e.mask});
+      if (it != table.end()) {
+        if (it->second.expire)
+          netBase.timer.remove(it->second.expire);
+      } else {
+        it = table.insert({{e.address, e.mask}, {}}).first;
+      }
+      it->second = TabEntry{
+          .device = info.l2.device,
+          .gateway = info.l3.header->src,
+          .metric = metric,
+          .expire =
+              metric < METRIC_INF
+                  ? netBase.timer.add([this, it]() { handleExpireTimer(it); },
+                                      expireCycle)
+                  : netBase.timer.add([this, it]() { handleCleanTimer(it); },
+                                      cleanCycle)};
       if (metric < METRIC_INF) {
         matchTable.setEntry({
           addr : e.address,
@@ -201,24 +227,19 @@ void RIP::handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info) 
     sendUpdate();
 }
 
-int RIP::handleIter() {
-  time_t curTime = time(nullptr);
-  for (auto it = table.begin(); it != table.end();) {
-    auto &e = *it;
-    if (e.second.expireTime) {
-      if (curTime > e.second.expireTime) {
-        matchTable.delEntry(it->first.addr, it->first.mask);
-        e.second.metric = METRIC_INF;
-      }
-      if (curTime - e.second.expireTime > cleanCycle) {
-        it = table.erase(it);
-        continue;
-      }
-    }
-    it++;
-  }
-  if (curTime >= updateTime) {
-    sendUpdate();
-  }
-  return 0;
+void RIP::handleExpireTimer(Table::iterator it) {
+  matchTable.delEntry(it->first.addr, it->first.mask);
+  it->second.metric = METRIC_INF;
+  it->second.expire =
+      netBase.timer.add([this, it] { handleCleanTimer(it); }, cleanCycle);
+}
+
+void RIP::handleCleanTimer(Table::iterator it) {
+  table.erase(it);
+}
+
+void RIP::handleUpdateTimer() {
+  sendUpdate();
+  updateTask =
+      netBase.timer.add([this]() { handleUpdateTimer(); }, updateCycle);
 }

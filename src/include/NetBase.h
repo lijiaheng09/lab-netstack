@@ -8,6 +8,7 @@
 
 #include "utils.h"
 #include "TaskDispatcher.h"
+#include "Timer.h"
 
 /**
  * @brief Base of the netstack, handling sending & receiving of pcap devices.
@@ -16,6 +17,7 @@
 class NetBase {
 public:
   TaskDispatcher dispatcher;
+  Timer timer;
 
   NetBase() = default;
   NetBase(const NetBase &) = delete;
@@ -100,21 +102,6 @@ public:
   int setup();
 
   /**
-   * @brief Handle an iteration.
-   *
-   * @return 0 on normal, negative on error, positive to break the loop.
-   */
-  using IterHandler = std::function<void()>;
-
-  /**
-   * @brief Register a callback in `loop`.
-   *
-   * @deprecated
-   * @param handler The handler.
-   */
-  void addOnIter(IterHandler handler);
-
-  /**
    * @brief Start to loop for receiving.
    *
    * @return 0 if breaked normally, negative on error.
@@ -129,7 +116,6 @@ public:
 private:
   Vector<Device *> devices;
   HashMultiMap<int, RecvHandler> onRecv;
-  Vector<IterHandler> onIter;
 
   std::atomic<bool> breaking;
 };

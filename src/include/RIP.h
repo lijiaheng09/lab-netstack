@@ -26,8 +26,6 @@ public:
   NetworkLayer &network;
   NetBase &netBase;
 
-  int updateCycle, expireCycle, cleanCycle;
-
   RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_);
   RIP(const RIP &) = delete;
 
@@ -50,7 +48,7 @@ public:
     LinkLayer::Device *device;
     Addr gateway;
     int metric;
-    time_t expireTime;
+    Timer::Task *expire;
   };
 
   int setup();
@@ -65,33 +63,33 @@ public:
   struct Key {
     NetworkLayer::Addr addr;
     NetworkLayer::Addr mask;
-    friend bool operator ==(const Key &a, const Key &b) {
+    friend bool operator==(const Key &a, const Key &b) {
       return a.addr == b.addr && a.mask == b.mask;
     }
   };
 
-  class HashAddr {
-  public:
-    size_t operator()(const Key &a) const {
-      return (uint64_t)a.mask.num << 32 | a.addr.num;
-    }
-  };
-
-  using Table = std::unordered_map<Key, TabEntry, HashAddr>;
+  using Table = HashMap<Key, TabEntry>;
 
   const Table &getTable();
 
+  void setCycles(Timer::Duration updateCycle, Timer::Duration expireCycle,
+                 Timer::Duration cleanCycle);
+
 private:
+  Timer::Duration updateCycle, expireCycle, cleanCycle;
+
   Table table;
   LpmRouting matchTable;
-
-  time_t updateTime;
 
   bool isUp;
 
   void handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info);
 
-  int handleIter();
+  Timer::Task *updateTask;
+
+  void handleExpireTimer(Table::iterator entry);
+  void handleCleanTimer(Table::iterator entry);
+  void handleUpdateTimer();
 };
 
 #endif
