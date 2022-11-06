@@ -1,4 +1,3 @@
-#include "netstack.h"
 #include "common.h"
 #include "commands.h"
 
@@ -77,7 +76,7 @@ public:
       bool start = false;
       if (memcmp(data, HELO, MSG_LEN) == 0) {
         fprintf(stderr, "device %s received HELO\n", link.device->name);
-        ethernet.send(RESP, MSG_LEN, info.header->src, ETHER_TYPE_CTRL,
+        ns.ethernet.send(RESP, MSG_LEN, info.header->src, ETHER_TYPE_CTRL,
                       link.device);
         start = true;
       } else if (memcmp(data, RESP, MSG_LEN) == 0) {
@@ -124,7 +123,7 @@ public:
     for (int i = 1; i < argc; i++) {
       Ethernet::Device *d;
 
-      INVOKE({ d = ethernet.addDeviceByName(argv[i]); })
+      INVOKE({ d = ns.ethernet.addDeviceByName(argv[i]); })
 
       if (!d)
         return 1;
@@ -151,13 +150,13 @@ public:
         std::mt19937 rnd(seed);
 
         INVOKE({
-          ethernet.addOnRecv(
+          ns.ethernet.addOnRecv(
               [l](auto &&...args) -> int {
                 l->ctrlHandler->handle(args...);
                 return 0;
               },
               ETHER_TYPE_CTRL);
-          ethernet.addOnRecv(
+          ns.ethernet.addOnRecv(
               [l](auto &&...args) -> int {
                 l->dataHandler->handle(args...);
                 return 0;
@@ -168,7 +167,7 @@ public:
         while (!l->start.try_lock_for(1s)) {
           fprintf(stderr, "device %s waiting\n", l->device->name);
           INVOKE({
-            ethernet.send(HELO, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device);
+            ns.ethernet.send(HELO, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device);
           })
         }
 
@@ -179,14 +178,14 @@ public:
           LongNum v = randLongNum(rnd);
           l->sent ^= v;
           INVOKE({
-            ethernet.send(&v, sizeof(LongNum), l->dst, ETHER_TYPE_DATA,
+            ns.ethernet.send(&v, sizeof(LongNum), l->dst, ETHER_TYPE_DATA,
                           l->device);
           })
           std::this_thread::sleep_for(1ms);
         }
 
         INVOKE({
-          ethernet.send(STOP, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device);
+          ns.ethernet.send(STOP, MSG_LEN, l->dst, ETHER_TYPE_CTRL, l->device);
         })
 
         l->stop.lock();

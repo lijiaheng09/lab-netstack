@@ -17,6 +17,9 @@ add_library(lab-netstack
   LpmRouting.cpp
   UDP.cpp
   RIP.cpp
+
+  NetStackSimple.cpp
+  NetStackFull.cpp
 )
 
 target_link_libraries(lab-netstack PRIVATE pcap)

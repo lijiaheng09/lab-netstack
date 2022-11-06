@@ -26,7 +26,9 @@ public:
   NetworkLayer &network;
   NetBase &netBase;
 
-  RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_);
+  RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_,
+      Timer::Duration updateCycle = 30s, Timer::Duration expireCycle = 180s,
+      Timer::Duration cleanCycle = 120s);
   RIP(const RIP &) = delete;
 
   struct Header {
@@ -80,8 +82,6 @@ private:
 
   Table table;
   LpmRouting matchTable;
-
-  bool isUp;
 
   void handleRecv(const void *msg, size_t msgLen, const UDP::RecvInfo &info);
 

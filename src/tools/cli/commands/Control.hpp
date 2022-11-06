@@ -1,4 +1,4 @@
-#include "netstack.h"
+#include "common.h"
 #include "commands.h"
 
 #include <thread>
@@ -8,7 +8,8 @@ public:
   CmdStartLoop() : Command("start-loop") {}
 
   int main(int argc, char **argv) override {
-    return startLoop();
+    ns.start();
+    return 0;
   }
 };
 

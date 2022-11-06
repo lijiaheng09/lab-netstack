@@ -8,8 +8,10 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#include "netstack.h"
+#include "nsInstance.h"
 #include "commands.h"
+
+NetStackFull ns;
 
 static std::vector<char *> splitLine(char *line) {
   std::vector<char *> args;
@@ -67,7 +69,7 @@ int executeCommand(std::vector<char *> &args) {
       found = true;
       rc = c->main((int)args.size(), args.data());
     }
-  
+
   if (!found) {
     fprintf(stderr, "%s: command not found\n", args[0]);
     rc = 127;
@@ -77,20 +79,16 @@ int executeCommand(std::vector<char *> &args) {
 }
 
 int main(int argc, char **argv) {
-  if (int rc = initNetStack()) {
-    fprintf(stderr, "NetStack init error.\n");
-    return rc;
-  }
-
+  ns.start();
   if (argc > 2 && argv[1][0] == '-' && argv[1][1] == 'c') {
     std::vector<char *> args(argv + 2, argv + argc);
     int rc = executeCommand(args);
     if (rc == 0 && argv[1][2] == 'w') {
-      netThread->join();
+      ns.wait();
       return rc;
     }
     if (argv[1][2] != 'i') {
-      stopLoop();
+      ns.stop();
       return rc;
     }
   }
@@ -102,7 +100,7 @@ int main(int argc, char **argv) {
     fp = fopen(argv[2], "r");
     if (!fp) {
       fprintf(stderr, "open file %s error: %s\n", argv[2], strerror(errno));
-      stopLoop();
+      ns.stop();
       return 1;
     }
     if (argv[1][2] != 'i')
@@ -156,7 +154,6 @@ int main(int argc, char **argv) {
     }
   }
   if (doWait)
-    netThread->join();
-  stopLoop();
+    ns.wait();
   return 0;
 }

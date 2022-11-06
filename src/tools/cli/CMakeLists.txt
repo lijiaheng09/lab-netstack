@@ -2,7 +2,6 @@ include_directories(include)
 
 add_executable(cli
   cli.cpp
-  netstack.cpp
   common.cpp
   commands.cpp
 )

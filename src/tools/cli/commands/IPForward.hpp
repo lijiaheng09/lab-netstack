@@ -1,4 +1,4 @@
-#include "netstack.h"
+#include "common.h"
 #include "commands.h"
 
 class CmdIPForward : public Command {
@@ -7,7 +7,7 @@ public:
 
   int main(int argc, char **argv) override {
     int rc;
-    INVOKE({ rc = ipForward.setup(); })
+    INVOKE({ rc = ns.enableForward(); })
     if (rc != 0)
       fprintf(stderr, "Error setting up IP forwarding.\n");
     return rc;

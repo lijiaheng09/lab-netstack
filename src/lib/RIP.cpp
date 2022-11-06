@@ -12,17 +12,14 @@ constexpr int RIP::UDP_PORT = 520;
 constexpr int RIP::ADDRESS_FAMILY = 2;
 constexpr int RIP::METRIC_INF = 16;
 
-RIP::RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_)
-    : udp(udp_), network(network_), netBase(netBase_), updateCycle(30s),
-      expireCycle(180s), cleanCycle(120s), isUp(false), matchTable(),
-      updateTask(nullptr) {}
+RIP::RIP(UDP &udp_, NetworkLayer &network_, NetBase &netBase_,
+         Timer::Duration updateCycle_, Timer::Duration expireCycle_,
+         Timer::Duration cleanCycle_)
+    : udp(udp_), network(network_), netBase(netBase_),
+      updateCycle(updateCycle_), expireCycle(expireCycle_),
+      cleanCycle(cleanCycle_), matchTable(), updateTask(nullptr) {}
 
 int RIP::setup() {
-  if (isUp) {
-    ERRLOG("RIP is already running.\n");
-    return 1;
-  }
-  isUp = true;
   udp.addOnRecv(
       [this](auto &&...args) -> int {
         handleRecv(args...);

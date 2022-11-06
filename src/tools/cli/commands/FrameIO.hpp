@@ -4,7 +4,7 @@
 
 #include <arpa/inet.h>
 
-#include "netstack.h"
+#include "common.h"
 #include "commands.h"
 
 class CmdSendFrame : public Command {
@@ -41,7 +41,7 @@ public:
     memset(data + rLen, 0, padding);
 
     int rc;
-    INVOKE({ rc = ethernet.send(data, len, dstMAC, etherType, d); })
+    INVOKE({ rc = ns.ethernet.send(data, len, dstMAC, etherType, d); })
 
     free(data);
     if (rc != 0) {

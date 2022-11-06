@@ -1,5 +1,6 @@
-#include "netstack.h"
+#include "common.h"
 #include "commands.h"
+#include "ICMP.h"
 
 #include <mutex>
 #include <atomic>
@@ -46,7 +47,7 @@ public:
 
     IP::Addr src;
     int rc;
-    INVOKE({ rc = ip.getSrcAddr(host, src); });
+    INVOKE({ rc = ns.ip.getSrcAddr(host, src); });
     if (rc < 0) {
       fprintf(stderr, "No IP address on the host.\n");
       return rc;
@@ -58,19 +59,19 @@ public:
     finish.lock();
     auto *handler = new ICMPHandler(finish, identifier);
 
-    INVOKE({ ip.icmp.addRecvCallback(handler); })
+    INVOKE({ ns.ip.icmp.addRecvCallback(handler); })
 
     for (int i = 1; i <= TIMES; i++) {
       printf("Send %d\n", i);
       INVOKE({
-        rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
+        rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
                                      sizeof(data), {});
       })
       if (rc == E_WAIT_FOR_TRYAGAIN) {
         std::timed_mutex wait;
         wait.lock();
         INVOKE({
-          ip.addWait(
+          ns.ip.addWait(
               host,
               [&wait](bool succ) {
                 if (succ)
@@ -81,7 +82,7 @@ public:
         // TODO remove the timer after implementing timeout
         if (wait.try_lock_for(1.5s)) {
           INVOKE({
-            rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
+            rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
                                          sizeof(data), {});
           })
         }
@@ -97,7 +98,7 @@ public:
       rc = 1;
     }
   END:
-    INVOKE({ ip.icmp.removeRecvCallback(handler); })
+    INVOKE({ ns.ip.icmp.removeRecvCallback(handler); })
     delete handler;
 
     return 0;
@@ -159,7 +160,7 @@ public:
 
     IP::Addr src;
     int rc;
-    INVOKE({ rc = ip.getSrcAddr(host, src); });
+    INVOKE({ rc = ns.ip.getSrcAddr(host, src); });
     if (rc < 0) {
       fprintf(stderr, "No IP address on the host.\n");
       return rc;
@@ -173,7 +174,7 @@ public:
     finish.store(false);
     auto *handler = new ICMPHandler(idle, finish, identifier);
 
-    INVOKE({ ip.icmp.addRecvCallback(handler); })
+    INVOKE({ ns.ip.icmp.addRecvCallback(handler); })
 
     constexpr int MAXHOP = 16;
     int err = 3;
@@ -182,14 +183,14 @@ public:
       fflush(stdout);
       idle.lock();
       INVOKE({
-        rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
+        rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
                                      sizeof(data), {.timeToLive = (uint8_t)i});
       })
       if (rc == E_WAIT_FOR_TRYAGAIN) {
         std::timed_mutex wait;
         wait.lock();
         INVOKE({
-          ip.addWait(
+          ns.ip.addWait(
               host,
               [&wait](bool succ) {
                 if (succ)
@@ -200,7 +201,7 @@ public:
         // TODO remove the timer after implementing timeout
         if (wait.try_lock_for(1.5s)) {
           INVOKE({
-            rc = ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
+            rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
                                          sizeof(data),
                                          {.timeToLive = (uint8_t)i});
           })
@@ -220,7 +221,7 @@ public:
       idle.unlock();
     }
 
-    INVOKE({ ip.icmp.removeRecvCallback(handler); })
+    INVOKE({ ns.ip.icmp.removeRecvCallback(handler); })
     delete handler;
 
     return rc;

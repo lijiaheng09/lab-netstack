@@ -1,4 +1,3 @@
-#include "netstack.h"
 #include "common.h"
 #include "commands.h"
 
@@ -13,7 +12,7 @@ public:
     }
 
     Ethernet::Device *d;
-    INVOKE({ d = ethernet.addDeviceByName(argv[1]); })
+    INVOKE({ d = ns.ethernet.addDeviceByName(argv[1]); })
 
     if (!d) {
       fprintf(stderr, "Error adding device: %s\n", argv[1]);

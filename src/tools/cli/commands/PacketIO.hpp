@@ -1,4 +1,4 @@
-#include "netstack.h"
+#include "common.h"
 #include "commands.h"
 
 class CmdCapturePackets : public Command {
@@ -24,7 +24,7 @@ public:
 
   int main(int argc, char **argv) override {
     INVOKE({
-      ip.addOnRecv(
+      ns.ip.addOnRecv(
           [this](auto &&...args) -> int {
             handler.handle(args...);
             return 0;

@@ -1,4 +1,6 @@
-#include "netstack.h"
+#include "ARP.h"
+
+#include "common.h"
 #include "commands.h"
 
 class CmdIPAddrAdd : public Command {
@@ -22,7 +24,7 @@ public:
 
     IP::DevAddr entry{device : d, addr : addr, mask : mask};
 
-    INVOKE({ ip.addAddr(entry); })
+    INVOKE({ ns.ip.addAddr(entry); })
     return 0;
   }
 };
@@ -50,9 +52,16 @@ public:
       return 1;
 
     int rc;
-    if (ip.getRouting() == &staticRouting) {
-      INVOKE({ rc = staticRouting.setEntry(entry); })
-    } else if (ip.getRouting() == &ripRouting) {
+    IP::Routing *routing;
+    INVOKE({
+      routing = ns.ip.getRouting();
+      if (!routing)
+        ns.configStaticRouting();
+      routing = ns.ip.getRouting();
+    })
+    if (auto *r = dynamic_cast<LpmRouting *>(routing)) {
+      INVOKE({ rc = r->setEntry(entry); })
+    } else if (auto *r = dynamic_cast<RIP *>(routing)) {
       RIP::TabEntry rentry{.device = entry.device,
                            .gateway = entry.gateway,
                            .metric = 1,
@@ -61,7 +70,7 @@ public:
         fprintf(stderr, "Invalid metric.\n");
         return 1;
       }
-      INVOKE({ rc = ripRouting.setEntry(entry.addr, entry.mask, rentry); })
+      INVOKE({ rc = r->setEntry(entry.addr, entry.mask, rentry); })
     }
     if (rc != 0) {
       fprintf(stderr, "Error setting routing entry.\n");
@@ -77,12 +86,11 @@ public:
 
   int main(int argc, char **argv) override {
     int rc;
-    INVOKE({ rc = ripRouting.setup(); })
+    INVOKE({ rc = ns.configRIP(); })
     if (rc != 0) {
       fprintf(stderr, "Error setting up RIP routing.\n");
       return 1;
     }
-    INVOKE({ ip.setRouting(&ripRouting); })
     return 0;
   }
 };
@@ -93,14 +101,19 @@ public:
 
   int main(int argc, char **argv) override {
     INVOKE({
-      const auto &table = staticRouting.getTable();
-      printf("IP | Netmask | Device | Gateway\n");
-      time_t curTime = time(nullptr);
-      for (auto &&e : table) {
-        printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
-                                  " | %s | " IP_ADDR_FMT_STRING "\n",
-               IP_ADDR_FMT_ARGS(e.addr), IP_ADDR_FMT_ARGS(e.mask),
-               e.device->name, IP_ADDR_FMT_ARGS(e.gateway));
+      auto *r = dynamic_cast<LpmRouting *>(ns.ip.getRouting());
+      if (r) {
+        const auto &table = r->getTable();
+        printf("IP | Netmask | Device | Gateway\n");
+        time_t curTime = time(nullptr);
+        for (auto &&e : table) {
+          printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
+                                    " | %s | " IP_ADDR_FMT_STRING "\n",
+                 IP_ADDR_FMT_ARGS(e.addr), IP_ADDR_FMT_ARGS(e.mask),
+                 e.device->name, IP_ADDR_FMT_ARGS(e.gateway));
+        }
+      } else {
+        printf("No static routing table\n");
       }
     })
     return 0;
@@ -113,19 +126,24 @@ public:
 
   int main(int argc, char **argv) override {
     INVOKE({
-      const auto &table = ripRouting.getTable();
-      printf("IP | Mask | Device | Gateway | Metric | Exipre\n");
-      time_t curTime = time(nullptr);
-      for (auto &&e : table) {
-        printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
-                                  " | %s | " IP_ADDR_FMT_STRING
-                                  " | %d | %+ld\n",
-               IP_ADDR_FMT_ARGS(e.first.addr), IP_ADDR_FMT_ARGS(e.first.mask),
-               e.second.device->name, IP_ADDR_FMT_ARGS(e.second.gateway),
-               e.second.metric,
-               e.second.expire
-                   ? (e.second.expire->expireTime - Timer::Clock::now()) / 1s
-                   : 0xffffffffL);
+      auto *r = dynamic_cast<RIP *>(ns.ip.getRouting());
+      if (r) {
+        const auto &table = r->getTable();
+        printf("IP | Mask | Device | Gateway | Metric | Exipre\n");
+        time_t curTime = time(nullptr);
+        for (auto &&e : table) {
+          printf(IP_ADDR_FMT_STRING " | " IP_ADDR_FMT_STRING
+                                    " | %s | " IP_ADDR_FMT_STRING
+                                    " | %d | %+ld\n",
+                 IP_ADDR_FMT_ARGS(e.first.addr), IP_ADDR_FMT_ARGS(e.first.mask),
+                 e.second.device->name, IP_ADDR_FMT_ARGS(e.second.gateway),
+                 e.second.metric,
+                 e.second.expire
+                     ? (e.second.expire->expireTime - Timer::Clock::now()) / 1s
+                     : 0xffffffffL);
+        }
+      } else {
+        printf("No RIP routing\n");
       }
     })
     return 0;
@@ -138,7 +156,7 @@ public:
 
   int main(int argc, char **argv) override {
     INVOKE({
-      const auto &table = ip.arp.getTable();
+      const auto &table = ns.ip.arp.getTable();
       printf("IP Address | MAC Address | Expire Time \n");
       time_t curTime = time(nullptr);
       for (auto &&e : table) {

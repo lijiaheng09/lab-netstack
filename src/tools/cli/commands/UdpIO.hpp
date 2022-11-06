@@ -1,4 +1,4 @@
-#include "netstack.h"
+#include "common.h"
 #include "commands.h"
 
 #include <atomic>
@@ -42,7 +42,7 @@ public:
       return 1;
     }
 
-    if (ip.getAnyAddr(nullptr, src) < 0) {
+    if (ns.ip.getAnyAddr(nullptr, src) < 0) {
       fprintf(stderr, "No IP address on the host\n");
       return 1;
     }
@@ -57,7 +57,7 @@ public:
 
     Handler *handler = new Handler(listen, remote, remotePort, port);
     INVOKE({
-      udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
+      ns.udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
         if (close) {
           closed.unlock();
           return 1;
@@ -75,7 +75,7 @@ public:
         std::mutex sending;
         INVOKE({
           auto retryCallback = [&] { sending.unlock(); };
-          int rc = udp.sendSegment(
+          int rc = ns.udp.sendSegment(
               line, dataLen, src, port, remote, remotePort,
               {autoRetry : true, waitingCallback : retryCallback});
           if (rc == E_WAIT_FOR_TRYAGAIN)
@@ -121,7 +121,7 @@ public:
       return 1;
     }
 
-    if (ip.getSrcAddr(remote, src) < 0) {
+    if (ns.ip.getSrcAddr(remote, src) < 0) {
       fprintf(stderr, "No IP address on the host\n");
       return 1;
     }
@@ -136,7 +136,7 @@ public:
 
     Handler *handler = new Handler(port);
     INVOKE({
-      udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
+      ns.udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
         if (close) {
           closed.unlock();
           return 1;
@@ -153,7 +153,7 @@ public:
       std::mutex sending;
       INVOKE({
         auto retryCallback = [&] { sending.unlock(); };
-        int rc = udp.sendSegment(
+        int rc = ns.udp.sendSegment(
             line, dataLen, src, port, remote, remotePort,
             {autoRetry : true, waitingCallback : retryCallback});
         if (rc == E_WAIT_FOR_TRYAGAIN)
