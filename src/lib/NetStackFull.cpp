@@ -2,8 +2,8 @@
 
 #include "log.h"
 
-NetStackFull::NetStackFull() : udp(ip), ipForward(nullptr), rip(nullptr) {
-  if (udp.setup() != 0) {
+NetStackFull::NetStackFull() : udp(ip), tcp(ip), ipForward(nullptr), rip(nullptr) {
+  if (udp.setup() != 0 || tcp.setup() != 0) {
     LOG_ERR("Netstack initialize failed");
     abort();
   }

@@ -23,8 +23,6 @@ int TCP::setup() {
   return 0;
 }
 
-TCP::Desc::Desc(TCP &tcp_) : tcp(tcp_), local{0, 0} {}
-
 bool TCP::hasUse(Sock sock) {
   if (sock.addr == L3::Addr{0})
     return portUserCount.count(sock.port);
@@ -62,18 +60,6 @@ void TCP::releaseUse(Sock sock) {
   }
 }
 
-int TCP::Desc::bind(Sock sock) {
-  if (tcp.hasUse(sock)) {
-    LOG_ERR("Address already in use: " IP_ADDR_FMT_STRING ":%hu",
-            IP_ADDR_FMT_ARGS(sock.addr), sock.port);
-    return -1;
-  }
-  tcp.releaseUse(local);
-  local = sock;
-  tcp.addUse(sock);
-  return 0;
-}
-
 TCP::Desc *TCP::create() {
   return new Desc(*this);
 }
@@ -99,21 +85,35 @@ TCP::Listener *TCP::listen(Desc *desc) {
   return listener;
 }
 
-void TCP::reset(const Header &inHeader, L3::Addr inSrc, L3::Addr inDst) {
-  Header header{
-  };
-}
-
 uint16_t TCP::calcChecksum(const void *seg, size_t segLen, L3::Addr src,
                            L3::Addr dst) {
   const TCP::Header &header = *(const Header *)seg;
-  size_t dataOff = ((header.offAndRsrv >> 4)) * 8UL;
+  size_t dataOff = ((header.offAndRsrv >> 4)) * 4UL;
   PseudoL3Header pseudo{.src = src,
                         .dst = dst,
                         .ptcl = PROTOCOL_ID,
-                        .tcpLen = htons(sizeof(Header) + (segLen - dataOff))};
+                        .tcpLen = htons(segLen)};
   uint16_t sum = csum16(&pseudo, sizeof(pseudo));
   return csum16(seg, segLen, ~sum);
+}
+
+int TCP::reset(const Header &inHeader, L3::Addr inSrc, L3::Addr inDst) {
+  uint32_t seqNum = (inHeader.ctrl & CTL_ACK) ? inHeader.ackNum : 0;
+  Header header{.srcPort = inHeader.dstPort,
+                .dstPort = inHeader.srcPort,
+                .seqNum = seqNum,
+                .ackNum = htonl(ntohl(inHeader.seqNum) + 1),
+                .offAndRsrv = (sizeof(Header) / 4) << 4,
+                .ctrl = CTL_RST | CTL_ACK,
+                .window = 0,
+                .checksum = 0,
+                .urgPtr = 0};
+  header.checksum = calcChecksum(&header, sizeof(Header), inDst, inSrc);
+#ifdef NETSTACK_DEBUG
+  assert(calcChecksum(&header, sizeof(Header), inDst, inSrc) == 0);
+#endif
+  return l3.send(&header, sizeof(Header), inDst, inSrc, PROTOCOL_ID,
+                 {.autoRetry = true});
 }
 
 void TCP::handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info) {
@@ -122,7 +122,7 @@ void TCP::handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info) {
     return;
   }
   const Header &header = *(const Header *)seg;
-  size_t dataOff = ((header.offAndRsrv >> 4)) * 8UL;
+  size_t dataOff = (header.offAndRsrv >> 4) * 4UL;
   if (segLen < dataOff) {
     LOG_INFO("Truncated TCP Header: %lu/%lu:%lu", segLen, sizeof(Header),
              dataOff);
@@ -130,6 +130,7 @@ void TCP::handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info) {
   }
   if (calcChecksum(seg, segLen, info.header->src, info.header->dst) != 0) {
     LOG_INFO("TCP checksum error");
+    return;
   }
 
   const void *data = (const char *)seg + dataOff;
@@ -152,6 +153,23 @@ void TCP::handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info) {
   }
 }
 
+TCP::Desc::Desc(TCP &tcp_) : tcp(tcp_), local{0, 0} {}
+TCP::Desc::~Desc() {}
+
+int TCP::Desc::bind(Sock sock) {
+  if (tcp.hasUse(sock)) {
+    LOG_ERR("Address already in use: " IP_ADDR_FMT_STRING ":%hu",
+            IP_ADDR_FMT_ARGS(sock.addr), sock.port);
+    return -1;
+  }
+  tcp.releaseUse(local);
+  local = sock;
+  tcp.addUse(sock);
+  return 0;
+}
+
+TCP::Listener::Listener(Desc &desc) : Desc(desc) {}
+
 void TCP::Listener::close() {
   tcp.listeners.erase(local);
   delete this;
@@ -159,6 +177,16 @@ void TCP::Listener::close() {
 
 void TCP::Listener::handleRecv(const void *data, size_t dataLen,
                                const RecvInfo &info) {
-  if (~info.header->ctrl & CTL_SYN)
-    return tcp.reset(*info.header, info.l3.header->src, info.l3.header->dst);
+  if (~info.header->ctrl & CTL_SYN) {
+    tcp.reset(*info.header, info.l3.header->src, info.l3.header->dst);
+    return;
+  }
+}
+
+void TCP::Connection::handleRecv(const void *data, size_t dataLen,
+                               const RecvInfo &info) {
+  if (info.header->ctrl & CTL_SYN) {
+    tcp.reset(*info.header, info.l3.header->src, info.l3.header->dst);
+    return;
+  }
 }

@@ -4,12 +4,14 @@
 #include "UDP.h"
 #include "RIP.h"
 #include "IPForward.h"
+#include "TCP.h"
 
 #include "NetStackSimple.h"
 
 class NetStackFull : public NetStackSimple {
 public:
   UDP udp;
+  TCP tcp;
 
   IPForward *ipForward;
   RIP *rip;

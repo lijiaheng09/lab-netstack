@@ -85,7 +85,7 @@ public:
   class Connection;
 
   class Listener : public Desc {
-    Listener(Desc &end);
+    Listener(Desc &desc);
     Listener(const Listener &) = delete;
 
     friend class TCP;
@@ -190,7 +190,7 @@ private:
   HashMap<Sock, Listener *> listeners;
   HashMap<std::pair<Sock, Sock>, Connection *> connections;
 
-  void reset(const Header &inHeader, L3::Addr inSrc, L3::Addr inDst);
+  int reset(const Header &inHeader, L3::Addr inSrc, L3::Addr inDst);
 
   void handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info);
 };
