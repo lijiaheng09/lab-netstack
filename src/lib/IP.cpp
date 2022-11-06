@@ -70,99 +70,145 @@ IP::Routing *IP::getRouting() {
 }
 
 int IP::sendWithHeader(void *packet, size_t packetLen, SendOptions options) {
-  Header &header = *(Header *)packet;
-  if (packetLen < sizeof(Header)) {
-    LOG_ERR("Truncated IP header: %lu/%lu", packetLen, sizeof(Header));
-    return -1;
-  }
-  size_t hdrLen = (header.versionAndIHL & 0x0f) * 4;
-  if (ntohs(header.totalLength) != packetLen || packetLen < hdrLen) {
-    LOG_ERR("Invalid IP packet length: %lu/%lu:%hu", packetLen, hdrLen,
-            ntohs(header.totalLength));
-    return -1;
-  }
+  int rc = 0;
+  do {
+    Header &header = *(Header *)packet;
+    if (packetLen < sizeof(Header)) {
+      LOG_ERR("Truncated IP header: %lu/%lu", packetLen, sizeof(Header));
+      rc = -1;
+      break;
+    }
+    size_t hdrLen = (header.versionAndIHL & 0x0f) * 4;
+    if (ntohs(header.totalLength) != packetLen || packetLen < hdrLen) {
+      LOG_ERR("Invalid IP packet length: %lu/%lu:%hu", packetLen, hdrLen,
+              ntohs(header.totalLength));
+      rc = -1;
+      break;
+    }
 
-  header.headerChecksum = 0;
-  header.headerChecksum = csum16(&header, hdrLen);
+    header.headerChecksum = 0;
+    header.headerChecksum = csum16(&header, hdrLen);
 #ifdef NETSTACK_DEBUG
-  assert(csum16(&header, hdrLen) == 0);
+    assert(csum16(&header, hdrLen) == 0);
 #endif
 
-  int rc = 0;
-  bool isBroadcast = false;
-  for (auto &&e : addrs)
-    if (!options.device || e.device == options.device) {
-      if (header.dst == BROADCAST || header.dst == (e.addr | ~e.mask)) {
-        isBroadcast = true;
-        int rc1 =
-            l2.send(packet, packetLen, L2::BROADCAST, PROTOCOL_ID, e.device);
-        if (rc1 != 0)
-          rc = rc1;
+    bool isBroadcast = false;
+    for (auto &&e : addrs)
+      if (!options.device || e.device == options.device) {
+        if (header.dst == BROADCAST || header.dst == (e.addr | ~e.mask)) {
+          isBroadcast = true;
+          int rc1 =
+              l2.send(packet, packetLen, L2::BROADCAST, PROTOCOL_ID, e.device);
+          if (rc1 != 0)
+            rc = rc1;
+        }
       }
-    }
-  if (isBroadcast)
-    return rc;
+    if (isBroadcast)
+      break;
 
-  if (!routing) {
-    LOG_ERR("No IP routing policy");
-    return -1;
-  }
-  Routing::HopInfo hop;
-  L2::Addr dstMAC;
-  if (options.device && options.dstMAC != L2::Addr{0}) {
-    hop.device = options.device;
-    dstMAC = options.dstMAC;
-  } else {
-    rc = routing->query(header.dst, hop);
-    if (rc != 0) {
-      LOG_ERR("IP routing error for " IP_ADDR_FMT_STRING,
-              IP_ADDR_FMT_ARGS(header.dst));
-      return rc;
+    if (!routing) {
+      LOG_ERR("No IP routing policy");
+      rc = -1;
+      break;
     }
-    Addr hopAddr = hop.gateway == Addr{0} ? header.dst : hop.gateway;
-    rc = arp.query(hopAddr, dstMAC);
-    if (rc == E_WAIT_FOR_TRYAGAIN) {
-      LOG_ERR("ARP query for " IP_ADDR_FMT_STRING ": wait to try again",
-              IP_ADDR_FMT_ARGS(hopAddr));
+    Routing::HopInfo hop;
+    L2::Addr dstMAC;
+    if (options.device && options.dstMAC != L2::Addr{0}) {
+      hop.device = options.device;
+      dstMAC = options.dstMAC;
+    } else {
+      rc = routing->query(header.dst, hop);
+      if (rc != 0) {
+        LOG_ERR("IP routing error for " IP_ADDR_FMT_STRING,
+                IP_ADDR_FMT_ARGS(header.dst));
+        break;
+      }
+      Addr hopAddr = hop.gateway == Addr{0} ? header.dst : hop.gateway;
+      rc = arp.query(hopAddr, dstMAC);
+      if (rc == E_WAIT_FOR_TRYAGAIN) {
+        LOG_ERR("ARP query for " IP_ADDR_FMT_STRING ": wait to try again",
+                IP_ADDR_FMT_ARGS(hopAddr));
+
+        if (options.autoRetry) {
+          void *packetCopy;
+          if (options.freeBuf)
+            packetCopy = packet;
+          else {
+            packetCopy = malloc(packetLen);
+            if (!packetCopy) {
+              LOG_ERR_POSIX("malloc");
+              break;
+            }
+            memcpy(packetCopy, packet, packetLen);
+          }
+          options.autoRetry = false;
+          options.freeBuf = false;
+          arp.addWait(
+              hopAddr,
+              [this, packetCopy, packetLen, options](bool succ) {
+                if (succ)
+                  sendWithHeader(packetCopy, packetLen, options);
+                free(packetCopy);
+              },
+              options.retryTimeout);
+          return rc;
+        }
+      }
+      if (rc != 0)
+        break;
     }
-    if (rc != 0)
-      return rc;
-  }
-  return l2.send(packet, packetLen, dstMAC, PROTOCOL_ID, hop.device);
+    rc = l2.send(packet, packetLen, dstMAC, PROTOCOL_ID, hop.device);
+
+  } while (0);
+
+  if (options.freeBuf)
+    free(const_cast<void *>(packet));
+  return rc;
 }
 
 int IP::send(const void *data, size_t dataLen, Addr src, Addr dst,
              uint8_t protocol, SendOptions options) {
-  if (dataLen > UINT16_MAX - sizeof(Header)) {
-    LOG_ERR("IP data length too large: %lu", dataLen);
-    return -1;
-  }
-  uint16_t packetLen = sizeof(Header) + dataLen;
+  int rc;
+  do {
+    if (dataLen > UINT16_MAX - sizeof(Header)) {
+      LOG_ERR("IP data length too large: %lu", dataLen);
+      rc = -1;
+      break;
+    }
+    uint16_t packetLen = sizeof(Header) + dataLen;
 #ifdef NETSTACK_DEBUG
-  assert(options.timeToLive > 0);
+    assert(options.timeToLive > 0);
 #endif
 
-  void *packet = malloc(packetLen);
-  if (!packet) {
-    LOG_ERR_POSIX("malloc");
-    return -1;
-  }
+    void *packet = malloc(packetLen);
+    if (!packet) {
+      LOG_ERR_POSIX("malloc");
+      rc = -1;
+      break;
+    }
 
-  Header &header = *(Header *)packet;
-  header = Header{.versionAndIHL = 4 << 4 | 5,
-                  .typeOfService = 0,
-                  .totalLength = htons(packetLen),
-                  .identification = 0,
-                  .flagsAndFragmentOffset = htons(0b010 << 13 | 0),
-                  .timeToLive = options.timeToLive,
-                  .protocol = protocol,
-                  .headerChecksum = 0,
-                  .src = src,
-                  .dst = dst};
-  memcpy(&header + 1, data, dataLen);
+    Header &header = *(Header *)packet;
+    header = Header{.versionAndIHL = 4 << 4 | 5,
+                    .typeOfService = 0,
+                    .totalLength = htons(packetLen),
+                    .identification = 0,
+                    .flagsAndFragmentOffset = htons(0b010 << 13 | 0),
+                    .timeToLive = options.timeToLive,
+                    .protocol = protocol,
+                    .headerChecksum = 0,
+                    .src = src,
+                    .dst = dst};
+    memcpy(&header + 1, data, dataLen);
 
-  int rc = sendWithHeader(packet, packetLen, options);
-  free(packet);
+    if (options.freeBuf)
+      free(const_cast<void *>(data));
+    options.freeBuf = true;
+    return sendWithHeader(packet, packetLen, options);
+
+  } while (0);
+
+  if (options.freeBuf)
+    free(const_cast<void *>(data));
   return rc;
 }
 

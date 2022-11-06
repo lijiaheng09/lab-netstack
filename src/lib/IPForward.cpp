@@ -70,14 +70,5 @@ void IPForward::handleRecv(const void *data, size_t dataLen,
   auto &newHeader = *(IP::Header *)newBuf;
   newHeader.timeToLive -= procTime;
 
-  int rc = ip.sendWithHeader(newBuf, packetLen, {});
-  if (rc == E_WAIT_FOR_TRYAGAIN) {
-    ip.addWait(newHeader.dst, [=](bool succ) {
-      if (succ)
-        ip.sendWithHeader(newBuf, packetLen, {});
-      free(newBuf);
-    });
-  } else {
-    free(newBuf);
-  }
+  ip.sendWithHeader(newBuf, packetLen, {.autoRetry = true, .freeBuf = true});
 }

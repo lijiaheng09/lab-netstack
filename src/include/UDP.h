@@ -32,11 +32,6 @@ public:
   UDP(L3 &l3_);
   UDP(const UDP &) = delete;
 
-  struct SendOptions {
-    bool autoRetry;
-    std::function<void()> waitingCallback;
-  };
-
   /**
    * @brief Send an UDP segment.
    *
@@ -46,13 +41,11 @@ public:
    * @param srcPort Source port.
    * @param dstAddr IP address of the destination.
    * @param dstPort Destination port.
-   * @param options Other options
    * @return 0 on success, negative on error.
-   * Including: E_WAIT_FOR_TRYAGAIN.
+   * Including: E_WAIT_FOR_TRYAGAIN (but will auto retry).
    */
-  int sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
-                  int srcPort, const L3::Addr &dstAddr, int dstPort,
-                  SendOptions = {});
+  int sendSegment(const void *data, int dataLen, L3::Addr srcAddr, int srcPort,
+                  L3::Addr dstAddr, int dstPort);
 
   struct RecvInfo {
     L3::RecvInfo l3;

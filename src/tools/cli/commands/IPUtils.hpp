@@ -65,22 +65,9 @@ public:
       printf("Send %d\n", i);
       INVOKE({
         rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
-                                        sizeof(data), {});
+                                        sizeof(data), {.autoRetry = true});
       })
-      if (rc == E_WAIT_FOR_TRYAGAIN) {
-        std::mutex wait;
-        wait.lock();
-        INVOKE({
-          ns.ip.addWait(
-              host, [&wait](bool succ) { wait.unlock(); }, 1s);
-        })
-        wait.lock();
-        INVOKE({
-          rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
-                                          sizeof(data), {});
-        })
-      }
-      if (rc != 0) {
+      if (rc != 0 && rc != E_WAIT_FOR_TRYAGAIN) {
         goto END;
       }
       if (i < TIMES)
@@ -178,28 +165,10 @@ public:
       INVOKE({
         rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
                                         sizeof(data),
-                                        {.timeToLive = (uint8_t)i});
+                                        {.timeToLive = (uint8_t)i, .autoRetry = true});
       })
-      if (rc == E_WAIT_FOR_TRYAGAIN) {
-        std::mutex wait;
-        wait.lock();
-        INVOKE({
-          ns.ip.addWait(
-              host,
-              [&wait](bool succ) {
-                if (succ)
-                  wait.unlock();
-              },
-              1s);
-        })
-        INVOKE({
-          rc = ns.ip.icmp.sendEchoOrReply(src, host, 8, identifier, i, data,
-                                          sizeof(data),
-                                          {.timeToLive = (uint8_t)i});
-        })
-      }
 
-      if (rc != 0)
+      if (rc != 0 && rc != E_WAIT_FOR_TRYAGAIN)
         break;
       if (!idle.try_lock_for(i * 2s)) {
         printf("*\n");

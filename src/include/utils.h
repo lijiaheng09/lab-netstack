@@ -6,6 +6,7 @@
 #include <vector>
 #include <list>
 #include <queue>
+#include <unordered_set>
 #include <unordered_map>
 
 template <typename T> using Vector = std::vector<T>;
@@ -26,6 +27,9 @@ public:
     return r;
   }
 };
+
+template <typename T>
+using HashSet = std::unordered_set<T>;
 
 template <typename K, typename V>
 using HashMap = std::unordered_map<K, V, Hash<K>>;

@@ -44,7 +44,8 @@ public:
     uint16_t tcpLen;
   } __attribute__((packed));
 
-  static uint16_t calcChecksum(const void *seg, size_t segLen, L3::Addr src, L3::Addr dst);
+  static uint16_t calcChecksum(const void *seg, size_t segLen, L3::Addr src,
+                               L3::Addr dst);
 
   TaskDispatcher &dispatcher;
   Timer &timer;
@@ -57,11 +58,15 @@ public:
   struct Sock {
     L3::Addr addr;
     uint16_t port;
+
+    friend bool operator==(Sock a, Sock b) {
+      return a.addr == b.addr && a.port == b.port;
+    }
   };
 
   class Desc {
     TCP &tcp;
-    Sock src;
+    Sock local;
 
     Desc(TCP &tcp_);
     virtual ~Desc();
@@ -69,7 +74,7 @@ public:
     friend class TCP;
 
   public:
-    virtual int bind(L3::Addr addr, uint16_t port);
+    virtual int bind(Sock sock);
   };
 
   struct RecvInfo {
@@ -88,10 +93,10 @@ public:
   public:
     Connection *awaitAccept();
 
-    int close();
+    void close();
 
   private:
-    void handleRecv(void *seg, size_t segLen, const RecvInfo &info);
+    void handleRecv(const void *data, size_t dataLen, const RecvInfo &info);
 
     using WaitHandler = std::function<void()>;
 
@@ -116,7 +121,7 @@ public:
       CLOSED
     } state;
 
-    Sock dst;
+    Sock remote;
 
     Connection(Desc &end);
     Connection(const Connection &) = delete;
@@ -129,10 +134,10 @@ public:
 
     ssize_t recv(void *data, size_t maxLen);
 
-    int close();
+    void close();
 
   private:
-    void handleRecv(void *seg, size_t segLen, const RecvInfo &info);
+    void handleRecv(const void *seg, size_t segLen, const RecvInfo &info);
 
     using WaitHandler = std::function<void()>;
 
@@ -155,13 +160,37 @@ public:
     uint32_t initRcvSeq; // initial receive sequence number
   };
 
-private:
-  struct SockPair {
-    Sock src, dst;
-  };
+  /**
+   * @brief Create a TCP descriptor.
+   *
+   * @return The created descriptor.
+   */
+  Desc *create();
 
-  HashMap<L3::Addr, Listener *> listeners;
-  HashMap<SockPair, Connection *> connections;
+  /**
+   * @brief Create a TCP listener by descriptor.
+   * The descriptor will be destroyed.
+   *
+   * @param desc The descriptor.
+   * @return The created listener.
+   */
+  Listener *listen(Desc *desc);
+
+  static constexpr uint16_t DYN_PORTS_BEGIN = 49152;
+
+private:
+  HashSet<uint16_t> freePorts;
+  HashMap<uint16_t, int> portUserCount;
+  HashMap<Sock, int> sockUserCount;
+
+  bool hasUse(Sock sock);
+  void addUse(Sock sock);
+  void releaseUse(Sock sock);
+
+  HashMap<Sock, Listener *> listeners;
+  HashMap<std::pair<Sock, Sock>, Connection *> connections;
+
+  void reset(const Header &inHeader, L3::Addr inSrc, L3::Addr inDst);
 
   void handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info);
 };

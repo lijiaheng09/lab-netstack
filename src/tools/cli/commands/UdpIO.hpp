@@ -15,8 +15,8 @@ class CmdNcUdpListen : public Command {
 
     Handler(std::atomic<bool> &listen_, IP::Addr &remote_, int &remotePort_,
             int port_)
-        : listen(listen_), remote(remote_),
-          remotePort(remotePort_), listenPort(port_) {}
+        : listen(listen_), remote(remote_), remotePort(remotePort_),
+          listenPort(port_) {}
 
     int handle(const void *data, int dataLen, const UDP::RecvInfo &info) {
       if (listen.load()) {
@@ -57,14 +57,16 @@ public:
 
     Handler *handler = new Handler(listen, remote, remotePort, port);
     INVOKE({
-      ns.udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
-        if (close) {
-          closed.unlock();
-          return 1;
-        }
-        handler->handle(args...);
-        return 0;
-      }, handler->listenPort);
+      ns.udp.addOnRecv(
+          [this, handler, &close, &closed](auto &&...args) -> int {
+            if (close) {
+              closed.unlock();
+              return 1;
+            }
+            handler->handle(args...);
+            return 0;
+          },
+          handler->listenPort);
     })
 
     static constexpr int MAXLINE = 1024;
@@ -74,14 +76,8 @@ public:
       if (!listen.load()) {
         std::mutex sending;
         INVOKE({
-          auto retryCallback = [&] { sending.unlock(); };
-          int rc = ns.udp.sendSegment(
-              line, dataLen, src, port, remote, remotePort,
-              {autoRetry : true, waitingCallback : retryCallback});
-          if (rc == E_WAIT_FOR_TRYAGAIN)
-            sending.lock();
-        })
-        sending.lock();
+          ns.udp.sendSegment(line, dataLen, src, port, remote, remotePort);
+        });
       }
       if (strcmp(line, ":quit\n") == 0) {
         break;
@@ -136,30 +132,24 @@ public:
 
     Handler *handler = new Handler(port);
     INVOKE({
-      ns.udp.addOnRecv([this, handler, &close, &closed](auto &&...args) -> int {
-        if (close) {
-          closed.unlock();
-          return 1;
-        }
-        handler->handle(args...);
-        return 0;
-      }, handler->listenPort);
+      ns.udp.addOnRecv(
+          [this, handler, &close, &closed](auto &&...args) -> int {
+            if (close) {
+              closed.unlock();
+              return 1;
+            }
+            handler->handle(args...);
+            return 0;
+          },
+          handler->listenPort);
     })
 
     static constexpr int MAXLINE = 1024;
     char line[MAXLINE];
     while (fgets(line, MAXLINE, stdin)) {
       int dataLen = strlen(line);
-      std::mutex sending;
-      INVOKE({
-        auto retryCallback = [&] { sending.unlock(); };
-        int rc = ns.udp.sendSegment(
-            line, dataLen, src, port, remote, remotePort,
-            {autoRetry : true, waitingCallback : retryCallback});
-        if (rc == E_WAIT_FOR_TRYAGAIN)
-          sending.lock();
-      })
-      sending.lock();
+      INVOKE(
+          { ns.udp.sendSegment(line, dataLen, src, port, remote, remotePort); })
       if (strcmp(line, ":quit\n") == 0) {
         break;
       }

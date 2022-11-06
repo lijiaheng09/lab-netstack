@@ -14,11 +14,9 @@ constexpr int UDP::PROTOCOL_ID = 17;
 
 UDP::UDP(L3 &l3_) : l3(l3_) {}
 
-int UDP::sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
-                     int srcPort, const L3::Addr &dstAddr, int dstPort,
-                     SendOptions options) {
+int UDP::sendSegment(const void *data, int dataLen, L3::Addr srcAddr,
+                     int srcPort, L3::Addr dstAddr, int dstPort) {
   int segLen = sizeof(Header) + dataLen;
-  int bufLen = sizeof(PseudoL3Header) + segLen;
 
   if (dataLen < 0 || (segLen >> 16) != 0) {
     ERRLOG("Invalid UDP data length: %d\n", dataLen);
@@ -29,20 +27,18 @@ int UDP::sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
     return -1;
   }
 
-  void *buf = malloc(bufLen);
-  if (!buf) {
+  void *seg = malloc(segLen);
+  if (!seg) {
     ERRLOG("malloc error: %s\n", strerror(errno));
     return -1;
   }
-  auto &pseudoHeader = *(PseudoL3Header *)buf;
-  pseudoHeader = PseudoL3Header{
+  PseudoL3Header pseudo{
     srcAddr : srcAddr,
     dstAddr : dstAddr,
     zero : 0,
     protocol : PROTOCOL_ID,
     udpLength : htons(segLen)
   };
-  void *seg = &pseudoHeader + 1;
   auto &header = *(Header *)seg;
   header = Header{
     srcPort : htons(srcPort),
@@ -51,22 +47,13 @@ int UDP::sendSegment(const void *data, int dataLen, const L3::Addr &srcAddr,
     checksum : 0
   };
   memcpy(&header + 1, data, dataLen);
-  header.checksum = csum16(buf, bufLen);
+  header.checksum = csum16(seg, segLen, ~csum16(&pseudo, sizeof(pseudo)));
 #ifdef NETSTACK_DEBUG
-  assert(csum16(buf, bufLen) == 0);
+  assert(csum16(seg, segLen, ~csum16(&pseudo, sizeof(pseudo))) == 0);
 #endif
 
-  int rc = l3.send(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
-  if (rc == E_WAIT_FOR_TRYAGAIN) {
-    l3.addWait(dstAddr, [=](bool succ) {
-      if (succ)
-        l3.send(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID, {});
-      free(buf);
-    });
-  } else {
-    free(buf);
-  }
-  return rc;
+  return l3.send(seg, segLen, srcAddr, dstAddr, PROTOCOL_ID,
+                 {.autoRetry = true, .freeBuf = true});
 }
 
 void UDP::addOnRecv(RecvHandler handler, uint16_t port) {

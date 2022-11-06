@@ -164,6 +164,9 @@ public:
     L2::Device *device;
     L2::Addr dstMAC;
     uint8_t timeToLive = 64;
+    bool autoRetry; // Automatically retry if need to wait.
+    Timer::Duration retryTimeout = 1s;
+    bool freeBuf; // Free the buffer after sending.
   };
 
   /**
@@ -175,7 +178,8 @@ public:
    * @param options Other options.
    *
    * @return 0 on success, negative on error.
-   * Including: E_WAIT_FOR_TRYAGAIN.
+   * Including: E_WAIT_FOR_TRYAGAIN (If autoRetry is set, will auto try to
+   * resend after available).
    */
   int sendWithHeader(void *packet, size_t packetLen, SendOptions options);
 
@@ -187,10 +191,11 @@ public:
    * @param src IP address of the source host.
    * @param dst IP address of the destination host.
    * @param protocol The `protocol` field of the packet.
-   * @param timeToLive The `time to live` field of the packet.
+   * @param options Other options.
    *
    * @return 0 on success, negative on error.
-   * Including: E_WAIT_FOR_TRYAGAIN.
+   * Including: E_WAIT_FOR_TRYAGAIN (If autoRetry is set, will auto try to
+   * resend after available).
    */
   int send(const void *data, size_t dataLen, Addr src, Addr dst,
            uint8_t protocol, SendOptions options);
