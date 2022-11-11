@@ -92,7 +92,7 @@ public:
   class Connection;
 
   class Listener : public Desc {
-    Listener(Desc &desc);
+    Listener(const Desc &desc);
     Listener(const Listener &) = delete;
 
     friend class TCP;
@@ -107,14 +107,18 @@ public:
 
     using WaitHandler = std::function<void()>;
 
-    Queue<Connection *> pendingConnctions;
-    Queue<WaitHandler> pendingAccepts;
+    // established connections pending for `accept`.
+    Queue<Connection *> pdEstab;
+    Queue<WaitHandler> pdAccept;
+
+    void newEstab(Connection *conn);
   };
 
   static constexpr size_t WND_SIZE = 32 << 10;
 
   class Connection : public Desc {
     enum class St {
+      CLOSED,
       LISTEN,
       SYN_SENT,
       SYN_RECEIVED,
@@ -124,13 +128,13 @@ public:
       CLOSE_WAIT,
       CLOSING,
       LAST_ACK,
-      TIME_WAIT,
-      CLOSED
+      TIME_WAIT
     } state;
 
     Sock foreign;
+    Listener *listener;
 
-    Connection(Desc &desc);
+    Connection(const Desc &desc, Sock foreign_);
     Connection(const Connection &) = delete;
     ~Connection();
 
@@ -148,7 +152,10 @@ public:
 
     int sendSeg(const void *data, size_t dataLen, uint8_t ctrl);
 
-    void connect(Sock dst);
+    void connect();
+
+    void handleRecvListen(Listener *listener, const void *data, size_t dataLen,
+                          const RecvInfo &info);
 
     void handleRecv(const void *data, size_t dataLen, const RecvInfo &info);
 
@@ -209,7 +216,8 @@ private:
   static bool seqLt(uint32_t a, uint32_t b);
   static bool seqLe(uint32_t a, uint32_t b);
 
-  int sendSeg(const void *data, size_t dataLen, const Header &header, L3::Addr src, L3::Addr dst);
+  int sendSeg(const void *data, size_t dataLen, const Header &header,
+              L3::Addr src, L3::Addr dst);
 
   void handleRecvClosed(const void *data, size_t dataLen, const RecvInfo &info);
 
