@@ -144,6 +144,8 @@ public:
     void close() override;
 
   private:
+    void advanceUnAck(uint32_t ack);
+
     int sendSeg(const void *data, size_t dataLen, uint8_t ctrl);
 
     void connect(Sock dst);
@@ -203,6 +205,9 @@ private:
 
   // (local, foreign) -> connection
   HashMap<std::pair<Sock, Sock>, Connection *> connections;
+
+  static bool seqLt(uint32_t a, uint32_t b);
+  static bool seqLe(uint32_t a, uint32_t b);
 
   int sendSeg(const void *data, size_t dataLen, const Header &header, L3::Addr src, L3::Addr dst);
 

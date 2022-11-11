@@ -61,12 +61,12 @@ TCP::Desc *TCP::create() {
 TCP::Listener *TCP::listen(Desc *desc) {
   if (desc->local.port == 0) {
     // TODO: allocate a port.
-    uint16_t p;
+    Sock local = desc->local;
     do {
-      p = DYN_PORTS_BEGIN + rnd() % (DYN_PORTS_END - DYN_PORTS_BEGIN + 1);
-    } while (listeners.count({desc->local.addr, p}) ||
-             listeners.count({{0}, p}));
-    desc->local.port = p;
+      local.port =
+          DYN_PORTS_BEGIN + rnd() % (DYN_PORTS_END - DYN_PORTS_BEGIN + 1);
+    } while (listeners.count(local) || listeners.count({{0}, local.port}));
+    desc->local = local;
   }
 
   Listener *listener = new Listener(*desc);
@@ -87,10 +87,10 @@ TCP::Connection *TCP::connect(Desc *desc, Sock dst) {
     // TODO: allocate a port.
     uint16_t p;
     do {
-      p = DYN_PORTS_BEGIN + rnd() % (DYN_PORTS_END - DYN_PORTS_BEGIN + 1);
+      local.port =
+          DYN_PORTS_BEGIN + rnd() % (DYN_PORTS_END - DYN_PORTS_BEGIN + 1);
     } while (listeners.count(local) || listeners.count({{0}, p}) ||
              connections.count({local, dst}));
-    desc->local.port = p;
   }
   if (connections.count({local, dst})) {
     LOG_ERR("Socket address already in use");
@@ -155,8 +155,8 @@ void TCP::handleRecv(const void *seg, size_t tcpLen, const L3::RecvInfo &info) {
   size_t dataLen = tcpLen - dataOff;
   RecvInfo newInfo{.l3 = info, .header = &header};
 
-  Sock local{.addr = info.header->dst, .port = header.dstPort};
-  Sock foreign{.addr = info.header->src, .port = header.srcPort};
+  Sock local{.addr = info.header->dst, .port = ntohs(header.dstPort)};
+  Sock foreign{.addr = info.header->src, .port = ntohs(header.srcPort)};
 
   auto itConn = connections.find({local, foreign});
   if (itConn != connections.end()) {
@@ -230,7 +230,8 @@ int TCP::Connection::sendSeg(const void *data, size_t dataLen, uint8_t ctrl) {
                            .srcPort = htons(local.port),
                            .dstPort = htons(foreign.port),
                            .seqNum = htonl(sndNxt),
-                           .ctrl = CTL_SYN,
+                           .ackNum = (ctrl & CTL_ACK) ? htonl(rcvNxt) : 0,
+                           .ctrl = ctrl,
                            .window = htons(WND_SIZE) // TODO: Flow Control
                        },
                        local.addr, foreign.addr);
@@ -247,9 +248,85 @@ void TCP::Connection::connect(Sock dst) {
   state = St::SYN_SENT;
 }
 
+bool TCP::seqLe(uint32_t a, uint32_t b) {
+  return b - a <= WND_SIZE * 2;
+}
+
+bool TCP::seqLt(uint32_t a, uint32_t b) {
+  return a != b && seqLe(a, b);
+}
+
+void TCP::Connection::advanceUnAck(uint32_t ack) {
+  // TODO
+  sndUnAck = ack;
+  return;
+}
+
 void TCP::Connection::handleRecv(const void *data, size_t dataLen,
                                  const RecvInfo &info) {
-  return;
+  const Header &h = *info.header;
+  switch (state) {
+  case St::CLOSED: {
+    tcp.handleRecvClosed(data, dataLen, info);
+    break;
+  }
+
+  case St::SYN_SENT: {
+    bool ackAcceptable = false;
+
+    if (h.ctrl & CTL_ACK) {
+      uint32_t segAck = ntohl(h.ackNum);
+      if (!seqLt(initSndSeq, segAck) || !seqLe(segAck, sndNxt)) {
+        if (!h.ctrl & CTL_RST) {
+          tcp.sendSeg(nullptr, 0,
+                      {.srcPort = htons(local.port),
+                       .dstPort = htons(foreign.port),
+                       .seqNum = h.ackNum,
+                       .ctrl = CTL_RST},
+                      local.addr, foreign.addr);
+        }
+        return;
+      }
+      if (seqLe(sndUnAck, segAck) && seqLe(segAck, sndNxt))
+        ackAcceptable = true;
+    }
+
+    if (h.ctrl & CTL_RST) {
+      if (ackAcceptable) {
+        // TODO: connection reset.
+        LOG_INFO("Conenction reset");
+        return;
+      } else {
+        return;
+      }
+    }
+
+    if (h.ctrl & CTL_SYN) {
+      initRcvSeq = ntohl(h.seqNum);
+      rcvNxt = initRcvSeq + 1;
+      if (h.ctrl & CTL_ACK)
+        advanceUnAck(ntohl(h.ackNum));
+      if (seqLt(initSndSeq, sndUnAck)) {
+        state = St::ESTABLISHED;
+        sendSeg(nullptr, 0, CTL_ACK);
+
+        // TODO: URG
+      } else {
+        state = St::SYN_RECEIVED;
+
+        // TODO: resend SYN-ACK ??
+        sendSeg(nullptr, 0, CTL_ACK);
+      }
+    }
+
+    break;
+  }
+
+  default: {
+    LOG_ERR("Unimplemented...");
+    break;
+  }
+  }
 }
 
 void TCP::Connection::close() {

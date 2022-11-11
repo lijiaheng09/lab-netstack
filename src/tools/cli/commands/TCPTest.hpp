@@ -36,7 +36,7 @@ public:
           fprintf(stderr, "Unable to create connection\n");
           return;
         }
-        connection->close();
+        // connection->close();
       });
       puts("Done.");
     }
