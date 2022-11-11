@@ -114,7 +114,8 @@ public:
     void newEstab(Connection *conn);
   };
 
-  static constexpr size_t WND_SIZE = 32 << 10;
+  static constexpr size_t MSS = 1024;
+  static constexpr size_t BUF_SIZE = 10; // 128 << 10;
 
   class Connection : public Desc {
     enum class St {
@@ -145,6 +146,8 @@ public:
 
     ssize_t recv(void *data, size_t maxLen);
 
+    ssize_t awaitRecv(void *data, size_t maxLen);
+
     void close() override;
 
   private:
@@ -154,6 +157,10 @@ public:
 
     void connect();
 
+    int establish();
+
+    void deliverData(const void *data, uint32_t dataLen);
+
     void handleRecvListen(Listener *listener, const void *data, size_t dataLen,
                           const RecvInfo &info);
 
@@ -161,8 +168,9 @@ public:
 
     using WaitHandler = std::function<void()>;
 
+    size_t hSend, hRecv, tSend, tRecv, uSend, uRecv;
     void *sendBuf, *recvBuf;
-    Queue<WaitHandler> pendingSends, pendingRecvs;
+    Queue<WaitHandler> pdSend, pdRecv;
 
     uint32_t sndUnAck;  // send unacknowledged
     uint32_t sndNxt;    // send next

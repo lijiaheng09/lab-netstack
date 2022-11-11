@@ -21,7 +21,7 @@ public:
           sscanf(argv[2], IP_ADDR_FMT_STRING, IP_ADDR_FMT_ARGS(&host)) !=
               IP_ADDR_FMT_NUM ||
           sscanf(argv[3], "%hu", &port) != 1) {
-        fprintf(stderr, "Usage: %s %s [host] [port]\n", argv[0], argv[1]);
+        fprintf(stderr, "Usage: %s %s <host> <port>\n", argv[0], argv[1]);
         return 1;
       }
       TCP::Desc *desc;
@@ -45,6 +45,7 @@ public:
       uint16_t port;
       if (argc != 3 || sscanf(argv[2], "%hu", &port) != 1) {
         fprintf(stderr, "Usage: %s %s <port>\n", argv[0], argv[1]);
+        return 1;
       }
       int rc = 0;
       TCP::Desc *desc;
@@ -77,7 +78,16 @@ public:
       if (!connection) {
         fprintf(stderr, "accept error\n");
       }
-      puts("Done");
+      puts("Accepted");
+
+      static constexpr int BUF_SIZE = 128;
+      char buf[BUF_SIZE];
+      while (1) {
+        ssize_t len = connection->awaitRecv(buf, BUF_SIZE);
+        assert(len > 0);
+        fwrite(buf, 1, len, stdout);
+        fflush(stdout);
+      }
 
     } else {
       fprintf(stderr, "Unknown command: %s\n", argv[1]);

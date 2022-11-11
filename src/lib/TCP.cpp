@@ -30,6 +30,14 @@ uint32_t TCP::genInitSeqNum() {
          4;
 }
 
+bool TCP::seqLe(uint32_t a, uint32_t b) {
+  return b - a <= BUF_SIZE * 2;
+}
+
+bool TCP::seqLt(uint32_t a, uint32_t b) {
+  return a != b && seqLe(a, b);
+}
+
 int TCP::setup() {
   l3.addOnRecv(
       [this](auto &&...args) -> int {
@@ -213,18 +221,16 @@ TCP::Connection *TCP::Listener::awaitAccept() {
   std::mutex finish;
   finish.lock();
   tcp.dispatcher.beginInvoke([this, &res, &finish]() {
-    if (!pdEstab.empty()) {
+    auto get = [this, &res, &finish]() {
+      NS_ASSERT(!pdEstab.empty());
       res = pdEstab.front();
       pdEstab.pop();
       finish.unlock();
-    } else {
-      pdAccept.push([this, &res, &finish] {
-        NS_ASSERT(!pdEstab.empty());
-        res = pdEstab.front();
-        pdEstab.pop();
-        finish.unlock();
-      });
-    }
+    };
+    if (!pdEstab.empty())
+      get();
+    else
+      pdAccept.push(get);
   });
   finish.lock();
   return res;
@@ -260,7 +266,7 @@ void TCP::Listener::handleRecv(const void *data, size_t dataLen,
 
 void TCP::Listener::newEstab(Connection *conn) {
   pdEstab.push(conn);
-  while (!pdEstab.empty() && pdAccept.empty()) {
+  while (!pdEstab.empty() && !pdAccept.empty()) {
     auto h = pdAccept.front();
     pdAccept.pop();
     h();
@@ -272,9 +278,55 @@ void TCP::Listener::close() {
 }
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
-    : Desc(desc), foreign(foreign_), listener(nullptr) {}
+    : Desc(desc), foreign(foreign_), listener(nullptr), sendBuf(nullptr),
+      recvBuf(nullptr) {}
 
-TCP::Connection::~Connection() {}
+TCP::Connection::~Connection() {
+  free(sendBuf);
+  free(recvBuf);
+}
+
+ssize_t TCP::Connection::recv(void *data, size_t maxLen) {
+  if (!uRecv || !maxLen)
+    return 0;
+
+  size_t dataLen = uRecv;
+  if (maxLen < dataLen)
+    dataLen = maxLen;
+  uRecv -= dataLen;
+  if (hRecv + dataLen <= BUF_SIZE) {
+    memcpy(data, (char *)recvBuf + hRecv, dataLen);
+    hRecv += dataLen;
+  } else {
+    size_t n0 = BUF_SIZE - hRecv;
+    memcpy(data, (char *)recvBuf + hRecv, n0);
+    memcpy((char *)data + n0, recvBuf, dataLen - n0);
+    hRecv = dataLen - n0;
+  }
+  rcvWnd = BUF_SIZE - uRecv;
+  return dataLen;
+}
+
+ssize_t TCP::Connection::awaitRecv(void *data, size_t maxLen) {
+  if (!maxLen)
+    return 0;
+  ssize_t rc;
+  std::mutex finish;
+  finish.lock();
+  tcp.dispatcher.beginInvoke([this, &rc, &finish, data, maxLen]() {
+    auto get = [this, &rc, &finish, data, maxLen]() {
+      NS_ASSERT(uRecv);
+      rc = recv(data, maxLen);
+      finish.unlock();
+    };
+    if (uRecv)
+      get();
+    else
+      pdRecv.push(get);
+  });
+  finish.lock();
+  return rc;
+}
 
 int TCP::Connection::sendSeg(const void *data, size_t dataLen, uint8_t ctrl) {
   size_t segLen = dataLen;
@@ -303,18 +355,54 @@ void TCP::Connection::connect() {
   state = St::SYN_SENT;
 }
 
-bool TCP::seqLe(uint32_t a, uint32_t b) {
-  return b - a <= WND_SIZE * 2;
-}
-
-bool TCP::seqLt(uint32_t a, uint32_t b) {
-  return a != b && seqLe(a, b);
+int TCP::Connection::establish() {
+  state = St::ESTABLISHED;
+  if (!(sendBuf = malloc(BUF_SIZE))) {
+    LOG_ERR_POSIX("malloc");
+    return -1;
+  }
+  if (!(recvBuf = malloc(BUF_SIZE))) {
+    LOG_ERR_POSIX("malloc");
+    free(sendBuf);
+    return -1;
+  }
+  hSend = hRecv = 0;
+  tSend = tRecv = 0;
+  uSend = uRecv = 0;
+  rcvWnd = BUF_SIZE;
+  if (listener)
+    listener->newEstab(this);
+  LOG_INFO("Connection established");
+  return 0;
 }
 
 void TCP::Connection::advanceUnAck(uint32_t ack) {
   // TODO
   sndUnAck = ack;
   return;
+}
+
+void TCP::Connection::deliverData(const void *data, uint32_t dataLen) {
+  if (dataLen > rcvWnd)
+    dataLen = rcvWnd;
+  rcvNxt += dataLen;
+  uRecv += dataLen;
+  if (tRecv + dataLen <= BUF_SIZE) {
+    memcpy((char *)recvBuf + tRecv, data, dataLen);
+    tRecv += dataLen;
+  } else {
+    size_t n0 = BUF_SIZE - tRecv;
+    memcpy((char *)recvBuf + tRecv, data, n0);
+    memcpy(recvBuf, (const char *)data + n0, dataLen - n0);
+    tRecv = dataLen - n0;
+  }
+  rcvWnd = BUF_SIZE - uRecv;
+
+  while (uRecv && !pdRecv.empty()) {
+    auto h = pdRecv.front();
+    pdRecv.pop();
+    h();
+  }
 }
 
 void TCP::Connection::handleRecvListen(Listener *listener_, const void *data,
@@ -365,6 +453,7 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       if (ackAcceptable) {
         // TODO: connection reset.
         LOG_INFO("Conenction reset");
+        state = St::CLOSED;
         return;
       } else {
         return;
@@ -377,11 +466,13 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       if (h.ctrl & CTL_ACK)
         advanceUnAck(ntohl(h.ackNum));
       if (seqLt(initSndSeq, sndUnAck)) {
+        if (establish() != 0) {
+          // TODO: handle error
+          abort();
+        }
         sendSeg(nullptr, 0, CTL_ACK);
-        state = St::ESTABLISHED;
-        LOG_INFO("Connection established");
 
-        // TODO: URG
+        // TODO: URG & text
       } else {
         state = St::SYN_RECEIVED;
 
@@ -404,27 +495,27 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     uint32_t segLen = dataLen;
     if (h.ctrl & CTL_SYN)
       segLen++;
-    if (h.ctrl & CTL_ACK)
+    if (h.ctrl & CTL_FIN)
       segLen++;
-    uint32_t seqNum = ntohl(h.seqNum);
+    uint32_t segSeq = ntohl(h.seqNum);
 
     // first check sequence number
-    bool acceptable = false;
+    bool seqAcceptable = false;
     if (segLen == 0) {
       if (rcvWnd == 0)
-        acceptable = seqNum == rcvNxt;
+        seqAcceptable = segSeq == rcvNxt;
       else
-        acceptable = seqLe(rcvNxt, seqNum) && seqLt(seqNum, rcvNxt + rcvWnd);
+        seqAcceptable = seqLe(rcvNxt, segSeq) && seqLt(segSeq, rcvNxt + rcvWnd);
     } else {
       if (rcvWnd == 0)
-        acceptable = false;
+        seqAcceptable = false;
       else
-        acceptable =
-            (seqLe(rcvNxt, seqNum) && seqLt(seqNum, rcvNxt + rcvWnd)) ||
-            (seqLe(rcvNxt, seqNum + segLen - 1) &&
-             seqLt(seqNum + segLen - 1, rcvNxt + rcvWnd));
+        seqAcceptable =
+            (seqLe(rcvNxt, segSeq) && seqLt(segSeq, rcvNxt + rcvWnd)) ||
+            (seqLe(rcvNxt, segSeq + segLen - 1) &&
+             seqLt(segSeq + segLen - 1, rcvNxt + rcvWnd));
     }
-    if (!acceptable) {
+    if (!seqAcceptable) {
       if (~h.ctrl & CTL_RST)
         sendSeg(nullptr, 0, CTL_ACK);
       return;
@@ -441,6 +532,7 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
           // TODO: signal user
           LOG_INFO("Connection refused");
           state = St::CLOSED;
+          return;
         }
         // TODO: remove segments
       }
@@ -451,15 +543,29 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     case St::FIN_WAIT_1:
     case St::FIN_WAIT_2:
     case St::CLOSE_WAIT: {
+      if (h.ctrl & CTL_RST) {
+        // TODO: signal user
+        LOG_INFO("Connection reset");
+        state = St::CLOSED;
+        return;
+      }
       break;
     }
 
     case St::CLOSING:
     case St::LAST_ACK:
     case St::TIME_WAIT: {
+      if (h.ctrl & CTL_RST) {
+        // TODO: reset
+        LOG_INFO("Connection reset");
+        state = St::CLOSED;
+        return;
+      }
       break;
     }
     }
+
+    // third check security and precedence
 
     // fourth, check the SYN bit
     if (h.ctrl & CTL_SYN) {
@@ -467,6 +573,7 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       // TODO: Connection reset
       LOG_INFO("Connection reset");
       state = St::CLOSED;
+      return;
     }
 
     // fifth check the ACK field
@@ -476,10 +583,34 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     switch (state) {
     case St::SYN_RECEIVED: {
       if (seqLe(sndUnAck, segAck) && seqLe(segAck, sndNxt)) {
-        state = St::ESTABLISHED;
-        LOG_INFO("Connection established");
-        if (listener)
-          listener->newEstab(this);
+        if (establish() != 0) {
+          // TODO: handle error
+          abort();
+        }
+      } else {
+        tcp.sendSeg(nullptr, 0,
+                    {.srcPort = htons(local.port),
+                     .dstPort = htons(foreign.port),
+                     .seqNum = h.ackNum,
+                     .ctrl = CTL_RST},
+                    local.addr, foreign.addr);
+        return;
+      }
+      // continue process ESTABLISHED
+    }
+
+    case St::ESTABLISHED: {
+      if (seqLt(sndUnAck, segAck) && seqLe(segAck, sndNxt)) {
+        advanceUnAck(segAck);
+        if (seqLt(sndWndUpdSeq, segSeq) ||
+            (sndWndUpdSeq == segSeq && seqLe(sndWndUpdAck, segAck))) {
+          sndWnd = ntohs(h.window);
+          sndWndUpdSeq = segSeq;
+          sndWndUpdAck = segAck;
+        }
+      } else if (seqLt(sndNxt, segAck)) {
+        sendSeg(nullptr, 0, CTL_ACK);
+        return;
       }
       break;
     }
@@ -493,8 +624,25 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     // (TODO) sixth, check the URG bit
 
     // seventh, process the segment text
+    switch (state) {
+    case St::ESTABLISHED:
+    case St::FIN_WAIT_1:
+    case St::FIN_WAIT_2: {
+      // Wait-back N
+      if (segSeq == rcvNxt)
+        deliverData(data, dataLen);
+      sendSeg(nullptr, 0, CTL_ACK);
+      break;
+    }
+
+    default: {
+      return;
+    }
+    }
 
     // eighth, check the FIN bit
+
+    break;
   }
 
   default: {
