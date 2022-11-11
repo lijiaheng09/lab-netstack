@@ -25,6 +25,8 @@ Command::~Command() {
 #include "commands/AutoConfig.hpp"
 #include "commands/IPUtils.hpp"
 
+#include "commands/TCPTest.hpp"
+
 std::vector<Command *> allCommands = {
   new CmdAddDevice(),
   new CmdFindDevice(),
@@ -51,6 +53,8 @@ std::vector<Command *> allCommands = {
   new CmdAutoConfig(),
   new CmdPing(),
   new CmdTraceRoute(),
+
+  new CmdTcpTest(),
 
   new CmdSleep()
 };

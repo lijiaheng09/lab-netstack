@@ -1,6 +1,8 @@
 #ifndef NETSTACK_TCP_H
 #define NETSTACK_TCP_H
 
+#include <random>
+
 #include "IP.h"
 
 class TCP {
@@ -44,12 +46,15 @@ public:
     uint16_t tcpLen;
   } __attribute__((packed));
 
-  static uint16_t calcChecksum(const void *seg, size_t segLen, L3::Addr src,
-                               L3::Addr dst);
+  static uint16_t checksum(const void *seg, size_t tcpLen, L3::Addr src,
+                           L3::Addr dst);
+
+  static uint32_t genInitSeqNum();
 
   TaskDispatcher &dispatcher;
   Timer &timer;
   L3 &l3;
+  std::mt19937 rnd;
 
   TCP(L3 &l3_);
 
@@ -65,6 +70,7 @@ public:
   };
 
   class Desc {
+  protected:
     TCP &tcp;
     Sock local;
 
@@ -75,6 +81,7 @@ public:
 
   public:
     virtual int bind(Sock sock);
+    virtual void close();
   };
 
   struct RecvInfo {
@@ -93,7 +100,7 @@ public:
   public:
     Connection *awaitAccept();
 
-    void close();
+    void close() override;
 
   private:
     void handleRecv(const void *data, size_t dataLen, const RecvInfo &info);
@@ -104,10 +111,10 @@ public:
     Queue<WaitHandler> pendingAccepts;
   };
 
-  static constexpr size_t WND_SIZE = 256 << 10;
+  static constexpr size_t WND_SIZE = 32 << 10;
 
   class Connection : public Desc {
-    enum class ST {
+    enum class St {
       LISTEN,
       SYN_SENT,
       SYN_RECEIVED,
@@ -121,9 +128,9 @@ public:
       CLOSED
     } state;
 
-    Sock remote;
+    Sock foreign;
 
-    Connection(Desc &end);
+    Connection(Desc &desc);
     Connection(const Connection &) = delete;
     ~Connection();
 
@@ -134,10 +141,14 @@ public:
 
     ssize_t recv(void *data, size_t maxLen);
 
-    void close();
+    void close() override;
 
   private:
-    void handleRecv(const void *seg, size_t segLen, const RecvInfo &info);
+    int sendSeg(const void *data, size_t dataLen, uint8_t ctrl);
+
+    void connect(Sock dst);
+
+    void handleRecv(const void *data, size_t dataLen, const RecvInfo &info);
 
     using WaitHandler = std::function<void()>;
 
@@ -172,27 +183,32 @@ public:
    * The descriptor will be destroyed.
    *
    * @param desc The descriptor.
-   * @return The created listener.
+   * @return The created listener, `nullptr` on error.
    */
   Listener *listen(Desc *desc);
 
+  /**
+   * @brief Make a TCP connection from descriptor.
+   *
+   * @param desc The local descriptor.
+   * @return The created connection, `nullptr` on error.
+   */
+  Connection *connect(Desc *desc, Sock dst);
+
   static constexpr uint16_t DYN_PORTS_BEGIN = 49152;
+  static constexpr uint16_t DYN_PORTS_END = 65535;
 
 private:
-  HashSet<uint16_t> freePorts;
-  HashMap<uint16_t, int> portUserCount;
-  HashMap<Sock, int> sockUserCount;
-
-  bool hasUse(Sock sock);
-  void addUse(Sock sock);
-  void releaseUse(Sock sock);
-
   HashMap<Sock, Listener *> listeners;
+
+  // (local, foreign) -> connection
   HashMap<std::pair<Sock, Sock>, Connection *> connections;
 
-  int reset(const Header &inHeader, L3::Addr inSrc, L3::Addr inDst);
+  int sendSeg(const void *data, size_t dataLen, const Header &header, L3::Addr src, L3::Addr dst);
 
-  void handleRecv(const void *seg, size_t segLen, const L3::RecvInfo &info);
+  void handleRecvClosed(const void *data, size_t dataLen, const RecvInfo &info);
+
+  void handleRecv(const void *seg, size_t tcpLen, const L3::RecvInfo &info);
 };
 
 #endif
