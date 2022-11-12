@@ -93,7 +93,7 @@ public:
       if (rc != 0)
         return 1;
       connection = listener->awaitAccept();
-      if (connection) {
+      if (!connection) {
         fprintf(stderr, "accept error\n");
       } else {
         puts("Accepted");

@@ -278,17 +278,10 @@ void TCP::Listener::close() {
 }
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
-    : Desc(desc), foreign(foreign_), listener(nullptr) {
-  if (!(rcvBuf = malloc(BUF_SIZE))) {
-    LOG_ERR_POSIX("malloc");
-    abort();
-  }
-  hRcv = tRcv = uRcv = 0;
-  rcvWnd = BUF_SIZE;
-}
+    : Desc(desc), foreign(foreign_), listener(nullptr), hRcv(0), tRcv(0),
+      uRcv(0), rcvWnd(BUF_SIZE) {}
 
 TCP::Connection::~Connection() {
-  free(rcvBuf);
   for (auto &&e : sndInfo)
     free(e.data);
 }
@@ -302,10 +295,10 @@ ssize_t TCP::Connection::recv(void *data, size_t maxLen) {
     dataLen = maxLen;
   uRcv -= dataLen;
   if (hRcv + dataLen <= BUF_SIZE) {
-    memcpy(data, (char *)rcvBuf + hRcv, dataLen);
+    memcpy(data, rcvBuf + hRcv, dataLen);
   } else {
     size_t n0 = BUF_SIZE - hRcv;
-    memcpy(data, (char *)rcvBuf + hRcv, n0);
+    memcpy(data, rcvBuf + hRcv, n0);
     memcpy((char *)data + n0, rcvBuf, dataLen - n0);
   }
   hRcv = (hRcv + dataLen) % BUF_SIZE;
@@ -447,10 +440,10 @@ void TCP::Connection::deliverData(const void *data, uint32_t dataLen,
   size_t p = (tRcv + (segSeq - rcvNxt)) % BUF_SIZE;
 
   if (p + dataLen <= BUF_SIZE) {
-    memcpy((char *)rcvBuf + p, data, dataLen);
+    memcpy(rcvBuf + p, data, dataLen);
   } else {
     size_t n0 = BUF_SIZE - p;
-    memcpy((char *)rcvBuf + p, data, n0);
+    memcpy(rcvBuf + p, data, n0);
     memcpy(rcvBuf, (const char *)data + n0, dataLen - n0);
   }
 
@@ -564,6 +557,8 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
   case St::CLOSING:
   case St::LAST_ACK:
   case St::TIME_WAIT: {
+    bool sendAck = false;
+
     uint32_t segLen = dataLen;
     if (h.ctrl & CTL_SYN)
       segLen++;
@@ -674,7 +669,11 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       // continue process ESTABLISHED
     }
 
-    case St::ESTABLISHED: {
+    case St::ESTABLISHED:
+    case St::FIN_WAIT_1:
+    case St::FIN_WAIT_2:
+    case St::CLOSE_WAIT:
+    case St::CLOSING: {
       if (seqLt(sndUnAck, segAck) && seqLe(segAck, sndNxt)) {
         advanceUnAck(segAck);
         if (seqLt(sndWndUpdSeq, segSeq) ||
@@ -692,6 +691,38 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
         sendSeg(nullptr, 0, CTL_ACK);
         return;
       }
+
+      if (state == St::FIN_WAIT_1) {
+        if (segAck == sndNxt)
+          state = St::FIN_WAIT_2;
+      }
+      if (state == St::FIN_WAIT_2) {
+        // TODO: acknowledge user close
+      }
+
+      if (state == St::CLOSING) {
+        if (segAck == sndNxt) {
+          state = St::TIME_WAIT;
+        } else {
+          return;
+        }
+      }
+
+      break;
+    }
+
+    case St::LAST_ACK: {
+      if (segAck == sndNxt) {
+        // TODO: delete this
+        state = St::CLOSED;
+        return;
+      }
+      break;
+    }
+
+    case St::TIME_WAIT: {
+      sendAck = true;
+      // TODO: restart 2 MSL timeout
       break;
     }
 
@@ -710,17 +741,59 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     case St::FIN_WAIT_2: {
       if (dataLen) {
         deliverData(data, dataLen, segSeq);
-        sendSeg(nullptr, 0, CTL_ACK);
+        sendAck = true;
       }
       break;
     }
 
-    default: {
+    case St::CLOSE_WAIT:
+    case St::CLOSING:
+    case St::LAST_ACK:
+    case St::TIME_WAIT: {
       return;
     }
     }
 
     // eighth, check the FIN bit
+    // ???
+    if ((h.ctrl & CTL_FIN)) {
+      sendAck = true;
+      if (rcvNxt == segSeq + (uint32_t)dataLen) {
+        // TODO: signal user, connection closing
+        rcvNxt = segSeq + dataLen + 1;
+        switch (state) {
+          case St::SYN_RECEIVED:
+          case St::ESTABLISHED: {
+            state = St::CLOSE_WAIT;
+            break;
+          }
+
+          case St::FIN_WAIT_1: {
+            if (sndUnAck == sndNxt) {
+              state = St::TIME_WAIT;
+              // TODO: start the TIME_WAIT timer & turn off other timers
+            } else {
+              state = St::CLOSING;
+            }
+            break;
+          }
+
+          case St::FIN_WAIT_2: {
+            state = St::TIME_WAIT;
+            // TODO: start the TIME_WAIT timer & turn off other timers
+            break;
+          }
+
+          case St::TIME_WAIT: {
+            // Restart the 2 MSL time-wait timeout.
+            break;
+          }
+        }
+      }
+    }
+
+    if (sendAck)
+      sendSeg(nullptr, 0, CTL_ACK);
 
     break;
   }

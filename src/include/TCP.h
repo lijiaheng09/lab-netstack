@@ -190,7 +190,7 @@ public:
     };
 
     size_t hRcv, tRcv, uRcv;
-    void *rcvBuf;
+    char rcvBuf[BUF_SIZE];
     Queue<WaitHandler> pdSnd, pdRcv;
     OrdSet<SegInfo> rcvInfo;
     OrdSet<SndSegInfo> sndInfo;
