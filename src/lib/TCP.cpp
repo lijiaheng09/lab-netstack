@@ -278,7 +278,14 @@ void TCP::Listener::close() {
 }
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
-    : Desc(desc), foreign(foreign_), listener(nullptr), rcvBuf(nullptr) {}
+    : Desc(desc), foreign(foreign_), listener(nullptr) {
+  if (!(rcvBuf = malloc(BUF_SIZE))) {
+    LOG_ERR_POSIX("malloc");
+    abort();
+  }
+  hRcv = tRcv = uRcv = 0;
+  rcvWnd = BUF_SIZE;
+}
 
 TCP::Connection::~Connection() {
   free(rcvBuf);
@@ -414,12 +421,6 @@ void TCP::Connection::connect() {
 
 int TCP::Connection::establish() {
   state = St::ESTABLISHED;
-  if (!(rcvBuf = malloc(BUF_SIZE))) {
-    LOG_ERR_POSIX("malloc");
-    return -1;
-  }
-  hRcv = tRcv = uRcv = 0;
-  rcvWnd = BUF_SIZE;
   LOG_INFO("Connection established");
   if (listener)
     listener->newEstab(this);
@@ -707,8 +708,10 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     case St::ESTABLISHED:
     case St::FIN_WAIT_1:
     case St::FIN_WAIT_2: {
-      deliverData(data, dataLen, segSeq);
-      sendSeg(nullptr, 0, CTL_ACK);
+      if (dataLen) {
+        deliverData(data, dataLen, segSeq);
+        sendSeg(nullptr, 0, CTL_ACK);
+      }
       break;
     }
 

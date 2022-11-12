@@ -8,6 +8,22 @@ class CmdTcpTest : public Command {
 public:
   CmdTcpTest() : Command("tcp-test") {}
 
+  void echo(TCP::Connection *connection) {
+    static constexpr int BUF_SIZE = 128;
+    char buf[BUF_SIZE], buf2[BUF_SIZE * 2];
+    while (1) {
+      ssize_t len = connection->awaitRecv(buf, BUF_SIZE);
+      assert(len > 0);
+      fwrite(buf, 1, len, stdout);
+      fflush(stdout);
+
+      const char *msg = " !!!Echo back: ";
+      memcpy(buf2, msg, strlen(msg));
+      memcpy(buf2 + strlen(msg), buf, len);
+      connection->asyncSendAll(buf2, strlen(msg) + len);
+    }
+  }
+
   int main(int argc, char **argv) override {
     if (argc < 2) {
       fprintf(stderr, "Usage: %s <command> ...", argv[0]);
@@ -39,8 +55,10 @@ public:
         }
         // connection->close();
       });
-      puts("Done.");
-
+      if (connection) {
+        puts("Connected.");
+        echo(connection);
+      }
     } else if (strcmp(argv[1], "listen") == 0) {
       uint16_t port;
       if (argc != 3 || sscanf(argv[2], "%hu", &port) != 1) {
@@ -75,25 +93,12 @@ public:
       if (rc != 0)
         return 1;
       connection = listener->awaitAccept();
-      if (!connection) {
+      if (connection) {
         fprintf(stderr, "accept error\n");
+      } else {
+        puts("Accepted");
+        echo(connection);
       }
-      puts("Accepted");
-
-      static constexpr int BUF_SIZE = 128;
-      char buf[BUF_SIZE], buf2[BUF_SIZE * 2];
-      while (1) {
-        ssize_t len = connection->awaitRecv(buf, BUF_SIZE);
-        assert(len > 0);
-        fwrite(buf, 1, len, stdout);
-        fflush(stdout);
-
-        const char *msg = " !!!Echo back: ";
-        memcpy(buf2, msg, strlen(msg));
-        memcpy(buf2 + strlen(msg), buf, len);
-        connection->asyncSendAll(buf2, strlen(msg) + len);
-      }
-
     } else {
       fprintf(stderr, "Unknown command: %s\n", argv[1]);
     }
