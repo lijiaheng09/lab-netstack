@@ -11,8 +11,7 @@ public:
   void echo(TCP::Connection *connection) {
     static constexpr int BUF_SIZE = 128;
     char buf[BUF_SIZE], buf2[BUF_SIZE * 2];
-    while (1) {
-      ssize_t len = connection->awaitRecv(buf, BUF_SIZE);
+    while (ssize_t len = connection->awaitRecv(buf, BUF_SIZE)) {
       assert(len > 0);
       fwrite(buf, 1, len, stdout);
       fflush(stdout);
@@ -22,6 +21,7 @@ public:
       memcpy(buf2 + strlen(msg), buf, len);
       connection->asyncSendAll(buf2, strlen(msg) + len);
     }
+    connection->awaitClose();
   }
 
   int main(int argc, char **argv) override {
@@ -99,6 +99,7 @@ public:
         puts("Accepted");
         echo(connection);
       }
+      listener->awaitClose();
     } else {
       fprintf(stderr, "Unknown command: %s\n", argv[1]);
     }

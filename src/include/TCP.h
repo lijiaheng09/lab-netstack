@@ -81,7 +81,7 @@ public:
 
   public:
     virtual int bind(Sock sock);
-    virtual void close();
+    virtual int awaitClose();
   };
 
   struct RecvInfo {
@@ -100,7 +100,7 @@ public:
   public:
     Connection *awaitAccept();
 
-    void close() override;
+    int awaitClose() override;
 
   private:
     void handleRecv(const void *data, size_t dataLen, const RecvInfo &info);
@@ -152,7 +152,7 @@ public:
 
     ssize_t awaitRecv(void *data, size_t maxLen);
 
-    void close() override;
+    int awaitClose() override;
 
   private:
     void advanceUnAck(uint32_t ack);

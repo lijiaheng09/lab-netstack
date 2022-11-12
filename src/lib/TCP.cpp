@@ -60,8 +60,9 @@ int TCP::Desc::bind(Sock sock) {
   return 0;
 }
 
-void TCP::Desc::close() {
-  delete this;
+int TCP::Desc::awaitClose() {
+  tcp.dispatcher.invoke([this]() { delete this; });
+  return 0;
 }
 
 TCP::Desc *TCP::create() {
@@ -273,8 +274,13 @@ void TCP::Listener::newEstab(Connection *conn) {
   }
 }
 
-void TCP::Listener::close() {
-  return;
+int TCP::Listener::awaitClose() {
+  tcp.dispatcher.invoke([this]() {
+    tcp.listeners.erase(local);
+    delete this;
+    // TODO: abort establishing & established connections
+  });
+  return 0;
 }
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
@@ -284,6 +290,79 @@ TCP::Connection::Connection(const Desc &desc, Sock foreign_)
 TCP::Connection::~Connection() {
   for (auto &&e : sndInfo)
     free(e.data);
+}
+
+int TCP::Connection::awaitClose() {
+  int rc;
+  std::mutex finish;
+  finish.lock();
+
+  auto ret = [&rc, &finish](int r) {
+    rc = r;
+    finish.unlock();
+  };
+
+  WaitHandler close = [this, &ret, &close]() {
+    switch (state) {
+    case St::CLOSED: {
+      LOG_ERR("connection does not exist");
+      return ret(-1);
+    }
+
+    case St::LISTEN: {
+      // impossible
+      abort();
+    }
+
+    case St::SYN_SENT: {
+      // TODO: delete TCB
+      return ret(0);
+    }
+
+    case St::SYN_RECEIVED: {
+      // TODO: if no send & no recv
+      // imossible
+      state = St::FIN_WAIT_1;
+      return ret(addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK));
+    }
+
+    case St::ESTABLISHED: {
+      state = St::FIN_WAIT_1;
+      if (pdSnd.empty()) {
+        return ret(addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK));
+      } else {
+        pdSnd.push(close);
+      }
+      break;
+    }
+
+    case St::FIN_WAIT_1:
+    case St::FIN_WAIT_2: {
+      LOG_ERR("connection closing");
+      return ret(-1);
+    }
+
+    case St::CLOSE_WAIT: {
+      if (pdSnd.empty()) {
+        state = St::CLOSING;
+        return ret(addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK));
+      } else {
+        pdSnd.push(close);
+      }
+    }
+
+    case St::CLOSING:
+    case St::LAST_ACK:
+    case St::TIME_WAIT: {
+      LOG_ERR("connection closing");
+      return ret(-1);
+    }
+    }
+  };
+
+  tcp.dispatcher.beginInvoke(close);
+  finish.lock();
+  return rc;
 }
 
 ssize_t TCP::Connection::recv(void *data, size_t maxLen) {
@@ -312,17 +391,54 @@ ssize_t TCP::Connection::awaitRecv(void *data, size_t maxLen) {
   ssize_t rc;
   std::mutex finish;
   finish.lock();
-  tcp.dispatcher.beginInvoke([this, &rc, &finish, data, maxLen]() {
-    auto get = [this, &rc, &finish, data, maxLen]() {
-      NS_ASSERT(uRcv);
-      rc = recv(data, maxLen);
-      finish.unlock();
-    };
-    if (uRcv)
-      get();
-    else
-      pdRcv.push(get);
-  });
+
+  auto ret = [this, &rc, &finish](int r) {
+    rc = r;
+    finish.unlock();
+  };
+
+  WaitHandler get = [this, &ret, data, maxLen, &get]() {
+    switch (state) {
+    case St::CLOSED: {
+      LOG_ERR("connection does not exist");
+      return ret(-1);
+    }
+
+    case St::LISTEN:
+    case St::SYN_SENT:
+    case St::SYN_RECEIVED: {
+      // queue
+    }
+
+    case St::ESTABLISHED:
+    case St::FIN_WAIT_1:
+    case St::FIN_WAIT_2: {
+      if (uRcv) {
+        return ret(recv(data, maxLen));
+      } else {
+        pdRcv.push(get);
+      }
+      break;
+    }
+
+    case St::CLOSE_WAIT: {
+      if (uRcv) {
+        return ret(recv(data, maxLen));
+      } else {
+        return ret(0);
+      }
+    }
+
+    case St::CLOSING:
+    case St::LAST_ACK:
+    case St::TIME_WAIT: {
+      LOG_ERR("connection closing");
+      return ret(-1);
+    }
+    }
+  };
+
+  tcp.dispatcher.beginInvoke(get);
   finish.lock();
   return rc;
 }
@@ -343,17 +459,47 @@ ssize_t TCP::Connection::asyncSend(const void *data, size_t dataLen) {
   ssize_t rc;
   std::mutex finish;
   finish.lock();
-  tcp.dispatcher.beginInvoke([this, &rc, &finish, data, dataLen]() {
-    auto put = [this, &rc, &finish, data, dataLen]() {
-      assert(sndNxt - sndUnAck < sndWnd);
-      rc = send(data, dataLen);
-      finish.unlock();
-    };
-    if (sndNxt - sndUnAck < sndWnd)
-      put();
-    else
-      pdSnd.push(put);
-  });
+
+  auto ret = [this, &rc, &finish](int r) {
+    rc = r;
+    finish.unlock();
+  };
+
+  WaitHandler put = [this, &ret, data, dataLen, &put]() {
+    switch (state) {
+    case St::CLOSED: {
+      LOG_ERR("connection does not exist");
+      return ret(-1);
+    }
+
+    case St::LISTEN: {
+      // Impossible
+      abort();
+    }
+
+    case St::SYN_SENT:
+    case St::SYN_RECEIVED: {
+      // queue
+    }
+
+    case St::ESTABLISHED:
+    case St::CLOSE_WAIT: {
+      if (sndNxt - sndUnAck < sndWnd) {
+        return ret(send(data, dataLen));
+      } else {
+        pdSnd.push(put);
+      }
+      break;
+    }
+
+    default: {
+      LOG_ERR("connection closing");
+      return ret(-1);
+    }
+    }
+  };
+
+  tcp.dispatcher.beginInvoke(put);
   finish.lock();
   return rc;
 }
@@ -460,9 +606,8 @@ void TCP::Connection::deliverData(const void *data, uint32_t dataLen,
   }
 
   while (uRcv && !pdRcv.empty()) {
-    auto h = pdRcv.front();
+    pdRcv.front()();
     pdRcv.pop();
-    h();
   }
 }
 
@@ -682,9 +827,8 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
           sndWndUpdSeq = segSeq;
           sndWndUpdAck = segAck;
           while (sndNxt - sndUnAck < sndWnd && !pdSnd.empty()) {
-            auto h = pdSnd.front();
+            pdSnd.front()();
             pdSnd.pop();
-            h();
           }
         }
       } else if (seqLt(sndNxt, segAck)) {
@@ -759,35 +903,41 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     if ((h.ctrl & CTL_FIN)) {
       sendAck = true;
       if (rcvNxt == segSeq + (uint32_t)dataLen) {
-        // TODO: signal user, connection closing
         rcvNxt = segSeq + dataLen + 1;
+
         switch (state) {
-          case St::SYN_RECEIVED:
-          case St::ESTABLISHED: {
-            state = St::CLOSE_WAIT;
-            break;
-          }
+        case St::SYN_RECEIVED:
+        case St::ESTABLISHED: {
+          state = St::CLOSE_WAIT;
+          break;
+        }
 
-          case St::FIN_WAIT_1: {
-            if (sndUnAck == sndNxt) {
-              state = St::TIME_WAIT;
-              // TODO: start the TIME_WAIT timer & turn off other timers
-            } else {
-              state = St::CLOSING;
-            }
-            break;
-          }
-
-          case St::FIN_WAIT_2: {
+        case St::FIN_WAIT_1: {
+          if (sndUnAck == sndNxt) {
             state = St::TIME_WAIT;
             // TODO: start the TIME_WAIT timer & turn off other timers
-            break;
+          } else {
+            state = St::CLOSING;
           }
+          break;
+        }
 
-          case St::TIME_WAIT: {
-            // Restart the 2 MSL time-wait timeout.
-            break;
-          }
+        case St::FIN_WAIT_2: {
+          state = St::TIME_WAIT;
+          // TODO: start the TIME_WAIT timer & turn off other timers
+          break;
+        }
+
+        case St::TIME_WAIT: {
+          // TODO: Restart the 2 MSL time-wait timeout.
+          break;
+        }
+        }
+
+        // signal user, connection closing
+        while (!pdRcv.empty()) {
+          pdRcv.front()();
+          pdRcv.pop();
         }
       }
     }
@@ -803,8 +953,4 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     break;
   }
   }
-}
-
-void TCP::Connection::close() {
-  // TODO;
 }
