@@ -159,7 +159,7 @@ public:
 
     int establish();
 
-    void deliverData(const void *data, uint32_t dataLen);
+    void deliverData(const void *data, uint32_t dataLen, uint32_t segSeq);
 
     void handleRecvListen(Listener *listener, const void *data, size_t dataLen,
                           const RecvInfo &info);
@@ -168,9 +168,18 @@ public:
 
     using WaitHandler = std::function<void()>;
 
+    struct SegDataInfo {
+      uint32_t begin, end;
+
+      friend bool operator <(SegDataInfo a, SegDataInfo b) {
+        return a.begin < b.begin;
+      }
+    };
+
     size_t hSend, hRecv, tSend, tRecv, uSend, uRecv;
     void *sendBuf, *recvBuf;
     Queue<WaitHandler> pdSend, pdRecv;
+    OrdSet<SegDataInfo> recvInfo;
 
     uint32_t sndUnAck;  // send unacknowledged
     uint32_t sndNxt;    // send next

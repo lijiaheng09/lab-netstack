@@ -382,21 +382,33 @@ void TCP::Connection::advanceUnAck(uint32_t ack) {
   return;
 }
 
-void TCP::Connection::deliverData(const void *data, uint32_t dataLen) {
-  if (dataLen > rcvWnd)
-    dataLen = rcvWnd;
-  rcvNxt += dataLen;
-  uRecv += dataLen;
-  if (tRecv + dataLen <= BUF_SIZE) {
-    memcpy((char *)recvBuf + tRecv, data, dataLen);
-    tRecv += dataLen;
+void TCP::Connection::deliverData(const void *data, uint32_t dataLen,
+                                  uint32_t segSeq) {
+  // rcvNxt --- tRecv
+  uint32_t maxLen = rcvWnd - (segSeq - rcvNxt);
+  if (dataLen > maxLen)
+    dataLen = maxLen;
+  size_t p = (tRecv + (segSeq - rcvNxt)) % BUF_SIZE;
+
+  if (p + dataLen <= BUF_SIZE) {
+    memcpy((char *)recvBuf + p, data, dataLen);
   } else {
-    size_t n0 = BUF_SIZE - tRecv;
-    memcpy((char *)recvBuf + tRecv, data, n0);
+    size_t n0 = BUF_SIZE - p;
+    memcpy((char *)recvBuf + p, data, n0);
     memcpy(recvBuf, (const char *)data + n0, dataLen - n0);
-    tRecv = dataLen - n0;
   }
-  rcvWnd = BUF_SIZE - uRecv;
+
+  recvInfo.insert({segSeq, segSeq + dataLen});
+  if (segSeq == rcvNxt) {
+    uint32_t prvRcvNxt = rcvNxt;
+    while (!recvInfo.empty() && seqLe(recvInfo.begin()->begin, rcvNxt)) {
+      if (seqLt(rcvNxt, recvInfo.begin()->end))
+        rcvNxt = recvInfo.begin()->end;
+      recvInfo.erase(recvInfo.begin());
+    }
+    tRecv = (tRecv + (rcvNxt - prvRcvNxt)) % BUF_SIZE;
+    uRecv += rcvNxt - prvRcvNxt;
+  }
 
   while (uRecv && !pdRecv.empty()) {
     auto h = pdRecv.front();
@@ -628,9 +640,7 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     case St::ESTABLISHED:
     case St::FIN_WAIT_1:
     case St::FIN_WAIT_2: {
-      // Wait-back N
-      if (segSeq == rcvNxt)
-        deliverData(data, dataLen);
+      deliverData(data, dataLen, segSeq);
       sendSeg(nullptr, 0, CTL_ACK);
       break;
     }

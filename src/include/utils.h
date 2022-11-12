@@ -6,6 +6,7 @@
 #include <vector>
 #include <list>
 #include <queue>
+#include <set>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -14,6 +15,9 @@ template <typename T> using Vector = std::vector<T>;
 template <typename T> using List = std::list<T>;
 
 template <typename T> using Queue = std::queue<T>;
+
+template <typename T, typename TCmp = std::less<T>>
+using OrdSet = std::set<T, TCmp>;
 
 template <typename T> class Hash {
   static constexpr size_t SEED = 257;
@@ -28,8 +32,7 @@ public:
   }
 };
 
-template <typename T>
-using HashSet = std::unordered_set<T>;
+template <typename T> using HashSet = std::unordered_set<T>;
 
 template <typename K, typename V>
 using HashMap = std::unordered_map<K, V, Hash<K>>;
