@@ -23,4 +23,8 @@ add_library(lab-netstack
   NetStackFull.cpp
 )
 
+add_library(lab-netstack-socket
+  socket.cpp
+)
+
 target_link_libraries(lab-netstack PRIVATE pcap)

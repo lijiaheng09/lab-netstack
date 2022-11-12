@@ -70,6 +70,11 @@ TCP::Desc *TCP::create() {
 }
 
 TCP::Listener *TCP::listen(Desc *desc) {
+  if (typeid(*desc) != typeid(Desc)) {
+    LOG_ERR("Listen from an opened descriptor");
+    return nullptr;
+  }
+
   if (desc->local.port == 0) {
     // TODO: allocate a port.
     Sock local = desc->local;
@@ -217,6 +222,11 @@ void TCP::handleRecvClosed(const void *data, size_t dataLen,
 
 TCP::Listener::Listener(const Desc &desc) : Desc(desc) {}
 
+int TCP::Listener::bind(Sock sock) {
+  LOG_ERR("Unsupported bind to a listener");
+  return -1;
+}
+
 TCP::Connection *TCP::Listener::awaitAccept() {
   TCP::Connection *res = nullptr;
   std::mutex finish;
@@ -257,6 +267,7 @@ void TCP::Listener::handleRecv(const void *data, size_t dataLen,
   if (h.ctrl & CTL_SYN) {
     Connection *connection =
         new Connection(*this, {info.l3.header->src, ntohs(h.srcPort)});
+    connection->onEstab.push([this, connection]() { newEstab(connection); });
     connection->local = {info.l3.header->dst, ntohs(h.dstPort)};
     connection->handleRecvListen(this, data, dataLen, info);
     tcp.connections[{connection->local, connection->foreign}] = connection;
@@ -285,11 +296,16 @@ int TCP::Listener::awaitClose() {
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
     : Desc(desc), foreign(foreign_), listener(nullptr), hRcv(0), tRcv(0),
-      uRcv(0), rcvWnd(BUF_SIZE) {}
+      uRcv(0), rcvWnd(std::min((uint32_t)UINT16_MAX, BUF_SIZE)) {}
 
 TCP::Connection::~Connection() {
   for (auto &&e : sndInfo)
     free(e.data);
+}
+
+int TCP::Connection::bind(Sock sock) {
+  LOG_ERR("Unsupported bind to a listener");
+  return -1;
 }
 
 int TCP::Connection::awaitClose() {
@@ -369,19 +385,23 @@ ssize_t TCP::Connection::recv(void *data, size_t maxLen) {
   if (!uRcv || !maxLen)
     return 0;
 
-  size_t dataLen = uRcv;
+  uint32_t dataLen = uRcv;
   if (maxLen < dataLen)
     dataLen = maxLen;
   uRcv -= dataLen;
   if (hRcv + dataLen <= BUF_SIZE) {
     memcpy(data, rcvBuf + hRcv, dataLen);
   } else {
-    size_t n0 = BUF_SIZE - hRcv;
+    uint32_t n0 = BUF_SIZE - hRcv;
     memcpy(data, rcvBuf + hRcv, n0);
     memcpy((char *)data + n0, rcvBuf, dataLen - n0);
   }
   hRcv = (hRcv + dataLen) % BUF_SIZE;
-  rcvWnd = BUF_SIZE - uRcv;
+
+  uint32_t prvRcvWnd = rcvWnd;
+  rcvWnd = std::min((uint32_t)UINT16_MAX, BUF_SIZE - uRcv);
+  if (rcvWnd > prvRcvWnd)
+    sendSeg(nullptr, 0, CTL_ACK);
   return dataLen;
 }
 
@@ -446,9 +466,10 @@ ssize_t TCP::Connection::awaitRecv(void *data, size_t maxLen) {
 ssize_t TCP::Connection::send(const void *data, size_t dataLen) {
   if (sndNxt - sndUnAck >= sndWnd)
     return 0;
-  size_t maxLen = std::min(MSS, sndWnd - (sndNxt - sndUnAck));
+  uint32_t maxLen = std::min(MSS, sndWnd - (sndNxt - sndUnAck));
   if (dataLen > maxLen)
     dataLen = maxLen;
+  assert(dataLen > 0);
   int rc = addSendSeg(data, dataLen, CTL_ACK);
   if (rc < 0)
     return rc;
@@ -479,7 +500,8 @@ ssize_t TCP::Connection::asyncSend(const void *data, size_t dataLen) {
 
     case St::SYN_SENT:
     case St::SYN_RECEIVED: {
-      // queue
+      onEstab.push(put);
+      break;
     }
 
     case St::ESTABLISHED:
@@ -561,8 +583,10 @@ void TCP::Connection::connect() {
 int TCP::Connection::establish() {
   state = St::ESTABLISHED;
   LOG_INFO("Connection established");
-  if (listener)
-    listener->newEstab(this);
+  while (!onEstab.empty()) {
+    onEstab.front()();
+    onEstab.pop();
+  }
   return 0;
 }
 
@@ -577,18 +601,25 @@ void TCP::Connection::advanceUnAck(uint32_t ack) {
   }
 }
 
+void TCP::Connection::checkSend() {
+  while (sndNxt - sndUnAck < sndWnd && !pdSnd.empty()) {
+    pdSnd.front()();
+    pdSnd.pop();
+  }
+}
+
 void TCP::Connection::deliverData(const void *data, uint32_t dataLen,
                                   uint32_t segSeq) {
   // rcvNxt --- tRcv
   uint32_t maxLen = rcvWnd - (segSeq - rcvNxt);
   if (dataLen > maxLen)
     dataLen = maxLen;
-  size_t p = (tRcv + (segSeq - rcvNxt)) % BUF_SIZE;
+  uint32_t p = (tRcv + (segSeq - rcvNxt)) % BUF_SIZE;
 
   if (p + dataLen <= BUF_SIZE) {
     memcpy(rcvBuf + p, data, dataLen);
   } else {
-    size_t n0 = BUF_SIZE - p;
+    uint32_t n0 = BUF_SIZE - p;
     memcpy(rcvBuf + p, data, n0);
     memcpy(rcvBuf, (const char *)data + n0, dataLen - n0);
   }
@@ -603,6 +634,7 @@ void TCP::Connection::deliverData(const void *data, uint32_t dataLen,
     }
     tRcv = (tRcv + (rcvNxt - prvRcvNxt)) % BUF_SIZE;
     uRcv += rcvNxt - prvRcvNxt;
+    rcvWnd = std::min((uint32_t)UINT16_MAX, BUF_SIZE - uRcv);
   }
 
   while (uRcv && !pdRcv.empty()) {
@@ -674,13 +706,14 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
         sndWnd = ntohs(h.window);
         sndWndUpdSeq = ntohl(h.seqNum);
         sndWndUpdAck = ntohl(h.ackNum);
+        checkSend();
       }
       if (seqLt(initSndSeq, sndUnAck)) {
+        sendSeg(nullptr, 0, CTL_ACK);
         if (establish() != 0) {
           // TODO: handle error
           abort();
         }
-        sendSeg(nullptr, 0, CTL_ACK);
 
         // TODO: URG & text
       } else {
@@ -798,6 +831,7 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
         sndWnd = ntohs(h.window);
         sndWndUpdSeq = segSeq;
         sndWndUpdAck = segAck;
+        checkSend();
         if (establish() != 0) {
           // TODO: handle error
           abort();
@@ -821,19 +855,19 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     case St::CLOSING: {
       if (seqLt(sndUnAck, segAck) && seqLe(segAck, sndNxt)) {
         advanceUnAck(segAck);
-        if (seqLt(sndWndUpdSeq, segSeq) ||
-            (sndWndUpdSeq == segSeq && seqLe(sndWndUpdAck, segAck))) {
-          sndWnd = ntohs(h.window);
-          sndWndUpdSeq = segSeq;
-          sndWndUpdAck = segAck;
-          while (sndNxt - sndUnAck < sndWnd && !pdSnd.empty()) {
-            pdSnd.front()();
-            pdSnd.pop();
-          }
-        }
+      } else if (seqLt(segAck, sndUnAck)) {
+        // ignore
       } else if (seqLt(sndNxt, segAck)) {
         sendSeg(nullptr, 0, CTL_ACK);
         return;
+      }
+
+      if (seqLt(sndWndUpdSeq, segSeq) ||
+          (sndWndUpdSeq == segSeq && seqLe(sndWndUpdAck, segAck))) {
+        sndWnd = ntohs(h.window);
+        sndWndUpdSeq = segSeq;
+        sndWndUpdAck = segAck;
+        checkSend();
       }
 
       if (state == St::FIN_WAIT_1) {

@@ -70,9 +70,7 @@ public:
   };
 
   class Desc {
-  protected:
     TCP &tcp;
-    Sock local;
 
     Desc(TCP &tcp_);
     virtual ~Desc();
@@ -80,6 +78,7 @@ public:
     friend class TCP;
 
   public:
+    Sock local;
     virtual int bind(Sock sock);
     virtual int awaitClose();
   };
@@ -98,6 +97,8 @@ public:
     friend class TCP;
 
   public:
+    int bind(Sock sock) override;
+
     Connection *awaitAccept();
 
     int awaitClose() override;
@@ -115,9 +116,13 @@ public:
   };
 
   static constexpr uint32_t MSS = 1024;
-  static constexpr size_t BUF_SIZE = 10; // 128 << 10;
+  static constexpr uint32_t BUF_SIZE = 128 << 10;
 
   class Connection : public Desc {
+  public:
+    Sock foreign;
+
+  private:
     enum class St {
       CLOSED,
       LISTEN,
@@ -132,7 +137,6 @@ public:
       TIME_WAIT
     } state;
 
-    Sock foreign;
     Listener *listener;
 
     Connection(const Desc &desc, Sock foreign_);
@@ -142,6 +146,8 @@ public:
     friend class TCP;
 
   public:
+    int bind(Sock sock) override;
+
     ssize_t send(const void *data, size_t dataLen);
 
     ssize_t asyncSend(const void *data, size_t dataLen);
@@ -156,6 +162,8 @@ public:
 
   private:
     void advanceUnAck(uint32_t ack);
+
+    void checkSend();
 
     int sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl);
 
@@ -189,9 +197,9 @@ public:
       // TODO: timer
     };
 
-    size_t hRcv, tRcv, uRcv;
+    uint32_t hRcv, tRcv, uRcv;
     char rcvBuf[BUF_SIZE];
-    Queue<WaitHandler> pdSnd, pdRcv;
+    Queue<WaitHandler> pdSnd, pdRcv, onEstab;
     OrdSet<SegInfo> rcvInfo;
     OrdSet<SndSegInfo> sndInfo;
 

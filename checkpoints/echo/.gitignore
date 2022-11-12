@@ -2,3 +2,8 @@
 /echo_server
 /perf_client
 /perf_server
+
+/echo_client_wrap
+/echo_server_wrap
+/perf_client_wrap
+/perf_server_wrap
