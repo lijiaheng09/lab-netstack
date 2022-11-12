@@ -114,7 +114,7 @@ public:
     void newEstab(Connection *conn);
   };
 
-  static constexpr size_t MSS = 1024;
+  static constexpr uint32_t MSS = 1024;
   static constexpr size_t BUF_SIZE = 10; // 128 << 10;
 
   class Connection : public Desc {
@@ -144,6 +144,10 @@ public:
   public:
     ssize_t send(const void *data, size_t dataLen);
 
+    ssize_t asyncSend(const void *data, size_t dataLen);
+
+    ssize_t asyncSendAll(const void *data, size_t dataLen);
+
     ssize_t recv(void *data, size_t maxLen);
 
     ssize_t awaitRecv(void *data, size_t maxLen);
@@ -153,7 +157,9 @@ public:
   private:
     void advanceUnAck(uint32_t ack);
 
-    int sendSeg(const void *data, size_t dataLen, uint8_t ctrl);
+    int sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl);
+
+    int addSendSeg(const void *data, uint32_t dataLen, uint8_t ctrl);
 
     void connect();
 
@@ -168,18 +174,26 @@ public:
 
     using WaitHandler = std::function<void()>;
 
-    struct SegDataInfo {
+    struct SegInfo {
       uint32_t begin, end;
 
-      friend bool operator <(SegDataInfo a, SegDataInfo b) {
-        return a.begin < b.begin;
+      friend bool operator<(SegInfo a, SegInfo b) {
+        return a.begin != b.begin ? a.begin < b.begin : a.end < b.end;
       }
     };
 
-    size_t hSend, hRecv, tSend, tRecv, uSend, uRecv;
-    void *sendBuf, *recvBuf;
-    Queue<WaitHandler> pdSend, pdRecv;
-    OrdSet<SegDataInfo> recvInfo;
+    struct SndSegInfo : public SegInfo {
+      void *data;
+      uint32_t dataLen;
+      uint8_t ctrl;
+      // TODO: timer
+    };
+
+    size_t hRcv, tRcv, uRcv;
+    void *rcvBuf;
+    Queue<WaitHandler> pdSnd, pdRcv;
+    OrdSet<SegInfo> rcvInfo;
+    OrdSet<SndSegInfo> sndInfo;
 
     uint32_t sndUnAck;  // send unacknowledged
     uint32_t sndNxt;    // send next

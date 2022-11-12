@@ -81,12 +81,17 @@ public:
       puts("Accepted");
 
       static constexpr int BUF_SIZE = 128;
-      char buf[BUF_SIZE];
+      char buf[BUF_SIZE], buf2[BUF_SIZE * 2];
       while (1) {
         ssize_t len = connection->awaitRecv(buf, BUF_SIZE);
         assert(len > 0);
         fwrite(buf, 1, len, stdout);
         fflush(stdout);
+
+        const char *msg = " !!!Echo back: ";
+        memcpy(buf2, msg, strlen(msg));
+        memcpy(buf2 + strlen(msg), buf, len);
+        connection->asyncSendAll(buf2, strlen(msg) + len);
       }
 
     } else {
