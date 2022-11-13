@@ -21,6 +21,7 @@ ssize_t __real_write(int fildes, const void *buf, size_t nbyte);
 int __real_close(int fildes);
 int __real_getaddrinfo(const char *node, const char *service,
                        const struct addrinfo *hints, struct addrinfo **res);
+void __real_freeaddrinfo(struct addrinfo *ai);
 
 /**
  * @see
@@ -78,6 +79,13 @@ int __wrap_close(int fildes);
  */
 int __wrap_getaddrinfo(const char *node, const char *service,
                        const struct addrinfo *hints, struct addrinfo **res);
+
+/**
+ * @see
+ * [POSIX.1-2017:freeaddrinfo](http://pubs.opengroup.org/onlinepubs/9699919799/functions/freeaddrinfo.html)
+ */
+void __wrap_freeaddrinfo(struct addrinfo *ai);
+
 
 #ifdef __cplusplus
 }

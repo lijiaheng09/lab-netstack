@@ -32,12 +32,10 @@ AutoNetStack::AutoNetStack() : NetStackFull(), curFd(65536) {
     // *.*.*.1 <---> *.*.*.2
     gw.data[3] = ((gw.data[3] - 1) ^ 1) + 1;
 
-    r->setEntry({
-      .addr{0, 0, 0, 0},
-      .mask{0, 0, 0, 0},
-      .device = addrs.front().device,
-      .gateway = gw
-    });
+    r->setEntry({.addr{0, 0, 0, 0},
+                 .mask{0, 0, 0, 0},
+                 .device = addrs.front().device,
+                 .gateway = gw});
   }
 
   start();
@@ -226,5 +224,54 @@ int __wrap_close(int fd) {
 
 int __wrap_getaddrinfo(const char *node, const char *service,
                        const struct addrinfo *hints, struct addrinfo **res) {
-  return __real_getaddrinfo(node, service, hints, res);
+  IP::Addr addr{0};
+  uint16_t port = 0;
+  if (hints) {
+    if (hints->ai_family != AF_INET) {
+      return EAI_FAMILY;
+    }
+    if (hints->ai_socktype != IPPROTO_TCP) {
+      return EAI_SOCKTYPE;
+    }
+    if (hints->ai_flags != 0) {
+      return EAI_BADFLAGS;
+    }
+  }
+  if (node) {
+    if (sscanf(node, IP_ADDR_FMT_STRING, IP_ADDR_FMT_ARGS(&addr)) !=
+        IP_ADDR_FMT_NUM) {
+      return EAI_NONAME;
+    }
+  }
+  if (service) {
+    if (sscanf(service, "%hu", &port) != 1) {
+      return EAI_SERVICE;
+    }
+  }
+
+  auto *saddr = new sockaddr_in {
+    .sin_family = AF_INET,
+    .sin_port = htons(port)
+  };
+  memcpy(&saddr->sin_addr, &addr, sizeof(IP::Addr));
+
+  *res = new addrinfo{
+    .ai_flags = 0,
+    .ai_family = AF_INET,
+    .ai_socktype = SOCK_DGRAM,
+    .ai_protocol = 0,
+    .ai_addrlen = sizeof(sockaddr_in),
+    .ai_addr = (struct sockaddr *)saddr
+  };
+  return 0;
+}
+
+void __wrap_freeaddrinfo(struct addrinfo *ai) {
+  struct addrinfo *nxt = nullptr;
+  for (auto *p = ai; p; p = nxt) {
+    nxt = p->ai_next;
+    if (p->ai_addr)
+      delete p->ai_addr;
+    delete p;
+  }
 }
