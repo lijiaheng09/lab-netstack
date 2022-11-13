@@ -2,16 +2,43 @@
 #include "NetStackFull.h"
 
 #include <climits>
+#include <shared_mutex>
+#include <mutex>
 
 #include "log.h"
 
 class AutoNetStack : public NetStackFull {
-public:
   int curFd;
+  std::mutex mutCFd;
+  std::shared_mutex mutFds;
   HashMap<int, TCP::Desc *> fds;
 
+public:
   AutoNetStack();
   ~AutoNetStack();
+
+  int nextFd() {
+    std::unique_lock lk(mutCFd);
+    return curFd++;
+  }
+
+  TCP::Desc *getFd(int fd) {
+    std::shared_lock lk(mutFds);
+    auto it = fds.find(fd);
+    if (it == fds.end())
+      return nullptr;
+    return it->second;
+  }
+
+  void setFd(int fd, TCP::Desc *d) {
+    std::unique_lock lk(mutFds);
+    fds[fd] = d;
+  }
+
+  void eraseFd(int fd) {
+    std::unique_lock lk(mutFds);
+    fds.erase(fd);
+  }
 };
 
 static AutoNetStack ns;
@@ -59,25 +86,26 @@ int __wrap_socket(int domain, int type, int protocol) {
     errno = EPROTONOSUPPORT;
     return -1;
   }
-  if (ns.curFd == INT_MAX) {
-    errno = ENFILE;
-    return -1;
-  }
 
   LOG_INFO("Using lab-netstack socket");
 
+  int fd = ns.nextFd();
+  if (fd < 0) {
+    errno = ENFILE;
+    return -1;
+  }
   TCP::Desc *desc = ns.tcp.create();
   if (!desc) {
     // impossible
     return -1;
   }
-  int fd = ns.curFd++;
-  ns.fds[fd] = desc;
+  ns.setFd(fd, desc);
   return fd;
 }
 
 int __wrap_bind(int fd, const struct sockaddr *address, socklen_t address_len) {
-  if (!ns.fds.count(fd))
+  auto *d = ns.getFd(fd);
+  if (!d)
     return __real_bind(fd, address, address_len);
 
   if (address_len != sizeof(sockaddr_in) && address->sa_family != AF_INET) {
@@ -90,7 +118,6 @@ int __wrap_bind(int fd, const struct sockaddr *address, socklen_t address_len) {
   memcpy(&sock.addr, &addr_in->sin_addr, sizeof(IP::Addr));
   sock.port = ntohs(addr_in->sin_port);
 
-  TCP::Desc *d = ns.fds[fd];
   int rc;
   ns.invoke([&rc, d, sock]() { rc = d->bind(sock); });
   if (rc != 0) {
@@ -101,23 +128,24 @@ int __wrap_bind(int fd, const struct sockaddr *address, socklen_t address_len) {
 }
 
 int __wrap_listen(int fd, int backlog) {
-  if (!ns.fds.count(fd))
+  auto *d = ns.getFd(fd);
+  if (!d)
     return __real_listen(fd, backlog);
 
-  TCP::Desc *d = ns.fds[fd];
   TCP::Listener *r;
   ns.invoke([&r, d]() { r = ns.tcp.listen(d); });
   if (!r) {
     errno = EINVAL;
     return -1;
   }
-  ns.fds[fd] = r;
+  ns.setFd(fd, r);
   return 0;
 }
 
 int __wrap_connect(int fd, const struct sockaddr *address,
                    socklen_t address_len) {
-  if (!ns.fds.count(fd))
+  auto *d = ns.getFd(fd);
+  if (!d)
     return __real_connect(fd, address, address_len);
 
   if (address_len != sizeof(sockaddr_in) && address->sa_family != AF_INET) {
@@ -130,37 +158,37 @@ int __wrap_connect(int fd, const struct sockaddr *address,
   memcpy(&sock.addr, &addr_in->sin_addr, sizeof(sock.addr));
   sock.port = ntohs(addr_in->sin_port);
 
-  TCP::Desc *d = ns.fds[fd];
   TCP::Connection *r;
   ns.invoke([&r, d, sock]() { r = ns.tcp.connect(d, sock); });
   if (!r) {
     errno = ENETUNREACH;
     return -1;
   }
-  ns.fds[fd] = r;
+  ns.setFd(fd, r);
   return 0;
 }
 
 int __wrap_accept(int fd, struct sockaddr *address, socklen_t *address_len) {
-  if (!ns.fds.count(fd))
+  auto *d = ns.getFd(fd);
+  if (!d)
     return __real_accept(fd, address, address_len);
 
-  TCP::Listener *d = dynamic_cast<TCP::Listener *>(ns.fds[fd]);
+  TCP::Listener *l = dynamic_cast<TCP::Listener *>(d);
   if (!d) {
     errno = EINVAL;
     return -1;
   }
-  if (ns.curFd == INT_MAX) {
+  int accFd = ns.nextFd();
+  if (accFd < 0) {
     errno = ENFILE;
     return -1;
   }
-  TCP::Connection *c = d->awaitAccept();
+  TCP::Connection *c = l->awaitAccept();
   if (!c) {
     errno = ECONNABORTED;
     return -1;
   }
-  int accFd = ns.curFd++;
-  ns.fds[accFd] = c;
+  ns.setFd(accFd, c);
 
   if (address) {
     sockaddr_in addr_in{.sin_family = AF_INET,
@@ -173,16 +201,17 @@ int __wrap_accept(int fd, struct sockaddr *address, socklen_t *address_len) {
 }
 
 ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
-  if (!ns.fds.count(fd))
+  auto *d = ns.getFd(fd);
+  if (!d)
     return __real_read(fd, buf, nbyte);
 
-  TCP::Connection *d = dynamic_cast<TCP::Connection *>(ns.fds[fd]);
+  TCP::Connection *c = dynamic_cast<TCP::Connection *>(d);
   if (!d) {
     errno = EINVAL;
     return -1;
   }
 
-  ssize_t rc = d->awaitRecv(buf, nbyte);
+  ssize_t rc = c->awaitRecv(buf, nbyte);
   if (rc < 0) {
     errno = ECONNABORTED;
     return -1;
@@ -191,16 +220,17 @@ ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
 }
 
 ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
-  if (!ns.fds.count(fd))
+  auto *d = ns.getFd(fd);
+  if (!d)
     return __real_write(fd, buf, nbyte);
 
-  TCP::Connection *d = dynamic_cast<TCP::Connection *>(ns.fds[fd]);
+  TCP::Connection *c = dynamic_cast<TCP::Connection *>(d);
   if (!d) {
     errno = EINVAL;
     return -1;
   }
 
-  ssize_t rc = d->asyncSend(buf, nbyte);
+  ssize_t rc = c->asyncSend(buf, nbyte);
   if (rc < 0) {
     errno = ECONNABORTED;
     return -1;
@@ -209,12 +239,12 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
 }
 
 int __wrap_close(int fd) {
-  if (!ns.fds.count(fd))
+  auto *d = ns.getFd(fd);
+  if (!d)
     return __real_close(fd);
 
-  TCP::Desc *d = ns.fds[fd];
   int rc = d->awaitClose();
-  ns.fds.erase(fd);
+  ns.eraseFd(fd);
   if (rc < 0) {
     // impossible
     return -1;
@@ -273,7 +303,7 @@ void __wrap_freeaddrinfo(struct addrinfo *ai) {
 
 int __wrap_setsockopt(int fd, int level, int option_name,
                       const void *option_value, socklen_t option_len) {
-  if (!ns.fds.count(fd))
+  if (!ns.getFd(fd))
     return __real_setsockopt(fd, level, option_name, option_value, option_len);
   errno = ENOPROTOOPT;
   return -1;
