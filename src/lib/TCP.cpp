@@ -758,9 +758,10 @@ void TCP::Connection::parseOptions(const uint8_t *begin, const uint8_t *end) {
 
     case OPT_MSS: {
       uint8_t len = *p++;
-      mss = std::min(mss,
-                     (uint32_t)ntohs(*reinterpret_cast<const uint16_t *>(p)));
-      p += len;
+      if (len == 4)
+        mss = std::min(mss,
+                       (uint32_t)ntohs(*reinterpret_cast<const uint16_t *>(p)));
+      p += len - 2;
       break;
     }
     }
