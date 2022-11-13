@@ -1,4 +1,4 @@
-if [[ $# != 2 ]]; then
+if [ $# -ne 2 ]; then
 	echo "Usage: $1 <device> <add/del>" >/dev/stderr
 	exit
 fi

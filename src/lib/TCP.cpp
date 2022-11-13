@@ -1012,6 +1012,9 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       if (state == St::CLOSING) {
         if (segAck == sndNxt) {
           state = St::TIME_WAIT;
+          removeSegments();
+          timeWait =
+              tcp.timer.add([this]() { tcp.removeConnection(this); }, 2 * MSL);
         } else {
           return;
         }
@@ -1031,6 +1034,7 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
 
     case St::TIME_WAIT: {
       sendAck = true;
+      NS_ASSERT(timeWait);
       tcp.timer.remove(timeWait);
       timeWait =
           tcp.timer.add([this]() { tcp.removeConnection(this); }, 2 * MSL);

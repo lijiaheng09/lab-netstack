@@ -1,0 +1,83 @@
+Script started on 2022-11-13 02:10:37-08:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="94" LINES="79"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP8[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP8[00m$ source test.sh 
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP8
+++ E=/home/lijiaheng/lab-netstack/checkpoints/CP8/../echo
+++ cd /home/lijiaheng/lab-netstack/checkpoints/CP8/../echo
+++ make clean-wrap
+rm echo_client_wrap echo_client_check_wrap echo_server_wrap perf_client_wrap perf_server_wrap
+++ make wrap
+gcc -o echo_client_wrap echo_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o echo_client_check_wrap echo_client_check.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o echo_server_wrap echo_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_client_wrap perf_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_server_wrap perf_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+++ cd /home/lijiaheng/lab-netstack/checkpoints/CP8/../../utils/vnetUtils/examples
+++ sudo ./makeVNetRaw
+++ cd ../helper
+++ sudo ./execNS ns1 ../../netem.sh veth1-2 add
+++ sudo ./execNS ns2 ../../netem.sh veth2-1 add
+++ sleep 1
+++ sudo ./execNS ns1 tcpdump -n -i veth1-2 -w /home/lijiaheng/lab-netstack/checkpoints/CP8/capture.pcap tcp
+tcpdump: listening on veth1-2, link-type EN10MB (Ethernet), capture size 262144 bytes
+++ sudo ./execNS ns2 /home/lijiaheng/lab-netstack/checkpoints/CP8/../echo/echo_client_check_wrap 10.100.1.1
+++ sudo ./execNS ns1 /home/lijiaheng/lab-netstack/checkpoints/CP8/../echo/echo_server_wrap
+Device added: veth1-2
+    ether 1e:a6:bc:69:29:dc
+    inet 10.100.1.1 netmask 255.255.255.0
+Setting static routing...
+Using lab-netstack socket
+Protocol not available
+Device added: veth2-1
+    ether 46:ed:3b:ac:17:b0
+    inet 10.100.1.2 netmask 255.255.255.0
+Device added: veth2-3
+    ether 6a:8f:45:83:f0:09
+    inet 10.100.2.1 netmask 255.255.255.0
+Setting static routing...
+Using lab-netstack socket
+ARP query for 10.100.1.1: wait to try again
+ARP query for 10.100.1.2: wait to try again
+new connection
+Connection established
+Connection established
+6 12 13 14 63 68 70 72 74 76 78 80 82 84 86 87 88 89 2137 4184 5208 7256 8279 12374 14422 15000 all: 15000
+loop #1 ok.
+Using lab-netstack socket
+new connection
+Connection established
+Connection established
+6 12 13 14 63 68 70 72 74 76 78 80 82 84 86 87 88 89 4184 8279 12374 15000 loop #2 ok.
+Using lab-netstack socket
+Connection established
+Connection established
+all: 15000
+new connection
+6 12 13 14 63 68 70 72 74 76 78 Truncated TCP Header: 20/20:52
+80 82 84 86 87 88 89 4184 6232 8279 12374 15000 all: 15000
+loop breaked: 0
+loop #3 ok.
+loop breaked: 0
+[2]+  Done                    sudo ./execNS ns1 $E/echo_server_wrap
+++ wait %2
+bash: wait: %2: no such job
+++ cd ../examples
+++ sudo ./removeVNet
+tcpdump: pcap_loop: The interface went down
+545 packets captured
+564 packets received by filter
+0 packets dropped by kernel
+[1]+  Exit 1                  sudo ./execNS ns1 tcpdump -n -i veth1-2 -w $C/capture.pcap tcp  (wd: ~/lab-netstack/utils/vnetUtils/helper)
+(wd now: ~/lab-netstack/utils/vnetUtils/examples)
+++ exit
+
+Script done on 2022-11-13 02:11:44-08:00 [COMMAND_EXIT_CODE="0"]

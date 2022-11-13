@@ -47,7 +47,8 @@ private:
   class Cmp {
   public:
     bool operator()(Task *a, Task *b) const {
-      return a->expireTime > b->expireTime;
+      return a->expireTime != b->expireTime ? a->expireTime > b->expireTime
+                                            : a > b;
     }
   };
 
