@@ -412,6 +412,9 @@ void TCP::Connection::handleRecv(const void *seg, size_t tcpLen, const L3::RecvI
   When there is no pending data to be received, the \texttt{awaitRecv} method will be blocked until available.
 
   The \texttt{awaitClose} (in normal cases) will send the \texttt{FIN}, and block until the remote side closes or acknowledges the \texttt{FIN} (just as described in RFC).
+  This can also make both sides close normally when the process exit (unlike the kernel stack, we cannot response anymore after the process terminates).
+
+  To protect thread safety, we still use the \texttt{Dispatcher} for communication between threads, and the \texttt{Timer} in a single thread (by simple polling, together with receiving) to serve the TCP (and the RIP before).
 
   For early testing, before the POSIX interface, we also implemented a simple echo tool in our CLI, and it can cooperate correctly with Linux programs (e.g. \texttt{nc}).
 
