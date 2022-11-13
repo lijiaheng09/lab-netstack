@@ -1,5 +1,7 @@
 *.aux
 *.log
 *.synctex.gz
+*.out
+*.toc
 
 _minted*/
