@@ -199,7 +199,7 @@ public:
 
     uint32_t hRcv, tRcv, uRcv;
     char rcvBuf[BUF_SIZE];
-    Queue<WaitHandler> pdSnd, pdRcv, onEstab;
+    Queue<WaitHandler> pdSnd, pdRcv, onEstab, onClose;
     OrdSet<SegInfo> rcvInfo;
     OrdSet<SndSegInfo> sndInfo;
 

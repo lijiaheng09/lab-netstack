@@ -16,6 +16,11 @@ NetBase::Device::~Device() {
   free(const_cast<char *>(name));
 }
 
+NetBase::~NetBase() {
+  for (auto *d : devices)
+    delete d;
+}
+
 void NetBase::addDevice(Device *device) {
   devices.push_back(device);
 }

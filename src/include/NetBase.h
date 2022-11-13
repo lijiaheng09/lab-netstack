@@ -21,6 +21,7 @@ public:
 
   NetBase() = default;
   NetBase(const NetBase &) = delete;
+  ~NetBase();
 
   class Device {
     struct pcap *p;

@@ -136,6 +136,8 @@ public:
       L2::Device *device; // The port to the next hop.
     };
 
+    virtual ~Routing() {}
+
     /**
      * @brief Query for the next hop to the destination.
      *

@@ -38,8 +38,7 @@ int NetStackSimple::autoConfig(bool setRouting) {
     return -1;
   }
 
-  int nDevs;
-  Ethernet::Device *d;
+  int nDevs = 0;
 
   for (auto *p = allDevs; p; p = p->next) {
     bool isEthernet = false;
@@ -53,7 +52,7 @@ int NetStackSimple::autoConfig(bool setRouting) {
       }
     if (!isEthernet)
       continue;
-    if (d = ethernet.addDeviceByName(p->name)) {
+    if (auto *d = ethernet.addDeviceByName(p->name)) {
       nDevs++;
       LOG_INFO("Device added: %s", d->name);
       LOG_INFO("    ether " ETHERNET_ADDR_FMT_STRING,
@@ -73,13 +72,15 @@ int NetStackSimple::autoConfig(bool setRouting) {
   }
   pcap_freealldevs(allDevs);
 
-  if (setRouting && nDevs == 1 && !ip.getRouting()) {
-    LOG_INFO("Setting static routing to the only device.");
+  if (setRouting && !ip.getRouting()) {
+    LOG_INFO("Setting static routing...");
     auto *r = new LpmRouting();
-    r->setEntry({.addr{0, 0, 0, 0},
-                 .mask{0, 0, 0, 0},
-                 .device = d,
-                 .gateway{0, 0, 0, 0}});
+    for (auto &&e : ip.getAddrs()) {
+      r->setEntry({.addr = e.addr & e.mask,
+                  .mask = e.mask,
+                  .device = e.device,
+                  .gateway{0, 0, 0, 0}});
+    }
     routing = r;
     ip.setRouting(r);
   }

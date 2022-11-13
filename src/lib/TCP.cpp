@@ -339,13 +339,16 @@ int TCP::Connection::awaitClose() {
       // TODO: if no send & no recv
       // imossible
       state = St::FIN_WAIT_1;
-      return ret(addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK));
+      addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK);
+      onClose.push([&ret]() { return ret(0); });
+      break;
     }
 
     case St::ESTABLISHED: {
       state = St::FIN_WAIT_1;
       if (pdSnd.empty()) {
-        return ret(addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK));
+        addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK);
+        onClose.push([&ret]() { return ret(0); });
       } else {
         pdSnd.push(close);
       }
@@ -876,6 +879,12 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       }
       if (state == St::FIN_WAIT_2) {
         // TODO: acknowledge user close
+        if (sndInfo.empty()) {
+          while (!onClose.empty()) {
+            onClose.front()();
+            onClose.pop();
+          }
+        }
       }
 
       if (state == St::CLOSING) {
