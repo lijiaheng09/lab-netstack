@@ -163,7 +163,8 @@ void TCP::handleRecv(const void *seg, size_t tcpLen, const L3::RecvInfo &info) {
     return;
   }
   if (checksum(seg, tcpLen, info.header->src, info.header->dst) != 0) {
-    LOG_INFO("TCP checksum error");
+    // To simulate unreliable network, we remove the log.
+    // LOG_INFO("TCP checksum error");
     return;
   }
 
@@ -222,6 +223,18 @@ void TCP::handleRecvClosed(const void *data, size_t dataLen,
 
 TCP::Listener::Listener(const Desc &desc) : Desc(desc) {}
 
+TCP::Listener::~Listener() {
+  isClosed = true;
+  while (!pdRecv.empty()) {
+    delete pdRecv.front();
+    pdRecv.pop();
+  }
+  while (!pdAccept.empty()) {
+    pdAccept.front()();
+    pdAccept.pop();
+  }
+}
+
 int TCP::Listener::bind(Sock sock) {
   LOG_ERR("Unsupported bind to a listener");
   return -1;
@@ -231,18 +244,25 @@ TCP::Connection *TCP::Listener::awaitAccept() {
   TCP::Connection *res = nullptr;
   std::mutex finish;
   finish.lock();
-  tcp.dispatcher.beginInvoke([this, &res, &finish]() {
-    auto get = [this, &res, &finish]() {
-      NS_ASSERT(!pdEstab.empty());
-      res = pdEstab.front();
-      pdEstab.pop();
-      finish.unlock();
-    };
-    if (!pdEstab.empty())
-      get();
-    else
-      pdAccept.push(get);
-  });
+
+  auto ret = [&res, &finish](TCP::Connection *r) {
+    res = r;
+    finish.unlock();
+  };
+
+  WaitHandler accept = [this, &ret, &accept]() {
+    if (isClosed) {
+      return ret(nullptr);
+    } else if (!pdRecv.empty()) {
+      auto *r = pdRecv.front();
+      pdRecv.pop();
+      return ret(r);
+    } else {
+      pdAccept.push(accept);
+    }
+  };
+
+  tcp.dispatcher.beginInvoke(accept);
   finish.lock();
   return res;
 }
@@ -267,22 +287,20 @@ void TCP::Listener::handleRecv(const void *data, size_t dataLen,
   if (h.ctrl & CTL_SYN) {
     Connection *connection =
         new Connection(*this, {info.l3.header->src, ntohs(h.srcPort)});
-    connection->onEstab.push([this, connection]() { newEstab(connection); });
+    // connection->onEstab.push([this, connection]() { newEstab(connection); });
     connection->local = {info.l3.header->dst, ntohs(h.dstPort)};
     connection->handleRecvListen(this, data, dataLen, info);
     tcp.connections[{connection->local, connection->foreign}] = connection;
+
+    pdRecv.push(connection);
+    while (!pdRecv.empty() && !pdAccept.empty()) {
+      auto h = pdAccept.front();
+      pdAccept.pop();
+      h();
+    }
   }
 
   return;
-}
-
-void TCP::Listener::newEstab(Connection *conn) {
-  pdEstab.push(conn);
-  while (!pdEstab.empty() && !pdAccept.empty()) {
-    auto h = pdAccept.front();
-    pdAccept.pop();
-    h();
-  }
 }
 
 int TCP::Listener::awaitClose() {
@@ -295,8 +313,8 @@ int TCP::Listener::awaitClose() {
 }
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
-    : Desc(desc), foreign(foreign_), listener(nullptr), hRcv(0), tRcv(0),
-      uRcv(0), rcvWnd(std::min((uint32_t)UINT16_MAX, BUF_SIZE)) {}
+    : Desc(desc), foreign(foreign_), isReset(false), hRcv(0),
+      tRcv(0), uRcv(0), rcvWnd(std::min((uint32_t)UINT16_MAX, BUF_SIZE)) {}
 
 TCP::Connection::~Connection() {
   for (auto &&e : sndInfo)
@@ -336,11 +354,13 @@ int TCP::Connection::awaitClose() {
     }
 
     case St::SYN_RECEIVED: {
-      // TODO: if no send & no recv
-      // imossible
-      state = St::FIN_WAIT_1;
-      addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK);
-      onClose.push([&ret]() { return ret(0); });
+      if (sndNxt == initSndSeq + 1 && pdSnd.empty()) {
+        state = St::FIN_WAIT_1;
+        addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK);
+        onClose.push([&ret]() { return ret(0); });
+      } else {
+        onEstab.push(close);
+      }
       break;
     }
 
@@ -364,7 +384,8 @@ int TCP::Connection::awaitClose() {
     case St::CLOSE_WAIT: {
       if (pdSnd.empty()) {
         state = St::CLOSING;
-        return ret(addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK));
+        addSendSeg(nullptr, 0, CTL_FIN | CTL_ACK);
+        return ret(0);
       } else {
         pdSnd.push(close);
       }
@@ -473,9 +494,7 @@ ssize_t TCP::Connection::send(const void *data, size_t dataLen) {
   if (dataLen > maxLen)
     dataLen = maxLen;
   assert(dataLen > 0);
-  int rc = addSendSeg(data, dataLen, CTL_ACK);
-  if (rc < 0)
-    return rc;
+  addSendSeg(data, dataLen, CTL_ACK);
   return dataLen;
 }
 
@@ -540,18 +559,22 @@ ssize_t TCP::Connection::asyncSendAll(const void *data, size_t dataLen) {
   return sent;
 }
 
-int TCP::Connection::sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl) {
+int TCP::Connection::sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl, uint32_t seqNum) {
   return tcp.sendSeg(data, dataLen,
                      {.srcPort = htons(local.port),
                       .dstPort = htons(foreign.port),
-                      .seqNum = htonl(sndNxt),
+                      .seqNum = htonl(seqNum),
                       .ackNum = (ctrl & CTL_ACK) ? htonl(rcvNxt) : 0,
                       .ctrl = ctrl,
                       .window = htons(std::min(rcvWnd, (uint32_t)UINT16_MAX))},
                      local.addr, foreign.addr);
 }
 
-int TCP::Connection::addSendSeg(const void *data, uint32_t dataLen,
+int TCP::Connection::sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl) {
+  return sendSeg(data, dataLen, ctrl, sndNxt);
+}
+
+void TCP::Connection::addSendSeg(const void *data, uint32_t dataLen,
                                 uint8_t ctrl) {
   uint32_t segLen = dataLen;
   if (ctrl & CTL_SYN)
@@ -564,15 +587,34 @@ int TCP::Connection::addSendSeg(const void *data, uint32_t dataLen,
     dataCopy = malloc(dataLen);
     if (!dataCopy) {
       LOG_ERR_POSIX("malloc");
-      return -1;
+      return;
     }
     memcpy(dataCopy, data, dataLen);
   }
 
   int rc = sendSeg(data, dataLen, ctrl);
-  sndInfo.insert({sndNxt, sndNxt + segLen, dataCopy, dataLen, ctrl});
+
+  auto it = sndInfo.insert({sndNxt, sndNxt + segLen, dataCopy, dataLen, ctrl}).first;
+
+  Timer::Handler retrans = [this, it]() {
+    if (seqLe(sndUnAck, it->begin)) {
+      sendSeg(it->data, it->dataLen, it->ctrl, it->begin);
+    } else {
+      uint32_t p = 0;
+      uint8_t ctrl = it->ctrl;
+      uint32_t rem = it->end - sndUnAck;
+      if ((ctrl & (CTL_SYN | CTL_FIN)) && rem) {
+        rem--;
+        ctrl &= ~CTL_SYN | CTL_FIN;
+      }
+      uint32_t off = it->dataLen - rem;
+      sendSeg((char *)it->data + off, rem, ctrl, sndUnAck);
+    }
+    it->retrans = tcp.timer.add(it->retrans->handler, RETRANS_TIMEOUT);
+  };
+  it->retrans = tcp.timer.add(retrans, RETRANS_TIMEOUT);
+
   sndNxt += segLen;
-  return rc;
 }
 
 void TCP::Connection::connect() {
@@ -599,6 +641,7 @@ void TCP::Connection::advanceUnAck(uint32_t ack) {
   while (!sndInfo.empty() && seqLe(sndInfo.begin()->end, sndUnAck)) {
     // TODO: remove timer
     auto p = sndInfo.begin();
+    tcp.timer.remove(p->retrans);
     free(p->data);
     sndInfo.erase(p);
   }
@@ -649,7 +692,6 @@ void TCP::Connection::deliverData(const void *data, uint32_t dataLen,
 void TCP::Connection::handleRecvListen(Listener *listener_, const void *data,
                                        size_t dataLen, const RecvInfo &info) {
   const Header &h = *info.header;
-  listener = listener_;
 
   initRcvSeq = ntohl(h.seqNum);
   rcvNxt = initRcvSeq + 1;
@@ -774,15 +816,14 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     switch (state) {
     case St::SYN_RECEIVED: {
       if (h.ctrl & CTL_RST) {
-        if (listener) {
-          // TODO: delete this
-        } else {
-          // TODO: signal user
-          LOG_INFO("Connection refused");
-          state = St::CLOSED;
-          return;
-        }
+        // if (listener) ...
+
+        // TODO: signal user
+        LOG_INFO("Connection refused");
+        state = St::CLOSED;
+
         // TODO: remove segments
+        return;
       }
       break;
     }

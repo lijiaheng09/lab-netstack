@@ -91,8 +91,11 @@ public:
   class Connection;
 
   class Listener : public Desc {
+    bool isClosed;
+
     Listener(const Desc &desc);
     Listener(const Listener &) = delete;
+    ~Listener();
 
     friend class TCP;
 
@@ -109,14 +112,13 @@ public:
     using WaitHandler = std::function<void()>;
 
     // established connections pending for `accept`.
-    Queue<Connection *> pdEstab;
+    Queue<Connection *> pdRecv;
     Queue<WaitHandler> pdAccept;
-
-    void newEstab(Connection *conn);
   };
 
   static constexpr uint32_t MSS = 1024;
   static constexpr uint32_t BUF_SIZE = 128 << 10;
+  static constexpr Timer::Duration RETRANS_TIMEOUT = 500ms;
 
   class Connection : public Desc {
   public:
@@ -137,7 +139,7 @@ public:
       TIME_WAIT
     } state;
 
-    Listener *listener;
+    bool isReset;
 
     Connection(const Desc &desc, Sock foreign_);
     Connection(const Connection &) = delete;
@@ -165,9 +167,11 @@ public:
 
     void checkSend();
 
+    int sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl, uint32_t seqNum);
+
     int sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl);
 
-    int addSendSeg(const void *data, uint32_t dataLen, uint8_t ctrl);
+    void addSendSeg(const void *data, uint32_t dataLen, uint8_t ctrl);
 
     void connect();
 
@@ -195,6 +199,7 @@ public:
       uint32_t dataLen;
       uint8_t ctrl;
       // TODO: timer
+      mutable Timer::Task *retrans;
     };
 
     uint32_t hRcv, tRcv, uRcv;

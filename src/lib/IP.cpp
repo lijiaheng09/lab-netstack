@@ -251,7 +251,8 @@ void IP::handleRecv(const void *packet, size_t packetCapLen,
     return;
   }
   if (csum16(&header, hdrLen) != 0) {
-    LOG_INFO("IP checksum error");
+    // To simulate unreliable network, we remove the log.
+    // LOG_INFO("IP checksum error");
     return;
   }
 
