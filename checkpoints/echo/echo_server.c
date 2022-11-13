@@ -35,16 +35,16 @@ int main(int argc, char *argv[]) {
   int rv;
   int connfd;
   int loop;
-  
+
   bzero(&servaddr, sizeof(servaddr));
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
   servaddr.sin_port = htons(10086);
 
-  Bind(listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
   optval = 1;
   rv = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR,
                       (const void *) &optval, sizeof(int));
+  Bind(listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
   if (rv < 0) {
     printf("%s\n", strerror(errno));
   }

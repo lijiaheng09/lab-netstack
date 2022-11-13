@@ -86,6 +86,7 @@ public:
   struct RecvInfo {
     L3::RecvInfo l3;
     const Header *header;
+    const uint8_t *options;
   };
 
   class Connection;
@@ -140,6 +141,7 @@ public:
       TIME_WAIT
     } state;
 
+    uint32_t mss;
     bool isReset;
 
     Connection(const Desc &desc, Sock foreign_);
@@ -183,6 +185,8 @@ public:
     int establish();
 
     void deliverData(const void *data, uint32_t dataLen, uint32_t segSeq);
+
+    void parseOptions(const uint8_t *begin, const uint8_t *end);
 
     void handleRecvListen(Listener *listener, const void *data, size_t dataLen,
                           const RecvInfo &info);

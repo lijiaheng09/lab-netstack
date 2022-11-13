@@ -170,7 +170,8 @@ void TCP::handleRecv(const void *seg, size_t tcpLen, const L3::RecvInfo &info) {
 
   const void *data = (const char *)seg + dataOff;
   size_t dataLen = tcpLen - dataOff;
-  RecvInfo newInfo{.l3 = info, .header = &header};
+  RecvInfo newInfo{
+      .l3 = info, .header = &header, .options = (const uint8_t *)(&header + 1)};
 
   Sock local{.addr = info.header->dst, .port = ntohs(header.dstPort)};
   Sock foreign{.addr = info.header->src, .port = ntohs(header.srcPort)};
@@ -317,8 +318,9 @@ int TCP::Listener::awaitClose() {
 }
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
-    : Desc(desc), foreign(foreign_), isReset(false), hRcv(0), tRcv(0), uRcv(0),
-      timeWait(nullptr), rcvWnd(std::min((uint32_t)UINT16_MAX, BUF_SIZE)) {}
+    : Desc(desc), foreign(foreign_), mss(MSS), isReset(false), hRcv(0), tRcv(0),
+      uRcv(0), timeWait(nullptr),
+      rcvWnd(std::min((uint32_t)UINT16_MAX, BUF_SIZE)) {}
 
 TCP::Connection::~Connection() {
   isReset = true;
@@ -526,7 +528,7 @@ ssize_t TCP::Connection::awaitRecv(void *data, size_t maxLen) {
 ssize_t TCP::Connection::send(const void *data, size_t dataLen) {
   if (sndNxt - sndUnAck >= sndWnd)
     return 0;
-  uint32_t maxLen = std::min(MSS, sndWnd - (sndNxt - sndUnAck));
+  uint32_t maxLen = std::min(mss, sndWnd - (sndNxt - sndUnAck));
   if (dataLen > maxLen)
     dataLen = maxLen;
   assert(dataLen > 0);
@@ -730,6 +732,8 @@ void TCP::Connection::handleRecvListen(Listener *listener_, const void *data,
                                        size_t dataLen, const RecvInfo &info) {
   const Header &h = *info.header;
 
+  parseOptions(info.options, (const uint8_t *)data);
+
   initRcvSeq = ntohl(h.seqNum);
   rcvNxt = initRcvSeq + 1;
 
@@ -738,6 +742,29 @@ void TCP::Connection::handleRecvListen(Listener *listener_, const void *data,
   sndNxt = initSndSeq;
   addSendSeg(nullptr, 0, CTL_SYN | CTL_ACK);
   state = St::SYN_RECEIVED;
+}
+
+void TCP::Connection::parseOptions(const uint8_t *begin, const uint8_t *end) {
+  for (auto *p = begin; p < end;) {
+    switch (*p++) {
+    case OPT_END: {
+      p = (uint8_t *)end;
+      break;
+    }
+
+    case OPT_NOP: {
+      break;
+    }
+
+    case OPT_MSS: {
+      uint8_t len = *p++;
+      mss = std::min(mss,
+                     (uint32_t)ntohs(*reinterpret_cast<const uint16_t *>(p)));
+      p += len;
+      break;
+    }
+    }
+  }
 }
 
 void TCP::Connection::handleRecv(const void *data, size_t dataLen,
@@ -782,6 +809,8 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     }
 
     if (h.ctrl & CTL_SYN) {
+      parseOptions(info.options, (const uint8_t *)data);
+
       initRcvSeq = ntohl(h.seqNum);
       rcvNxt = initRcvSeq + 1;
       if (h.ctrl & CTL_ACK) {
@@ -1044,9 +1073,8 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
           if (sndUnAck == sndNxt) {
             state = St::TIME_WAIT;
             removeSegments();
-            timeWait = tcp.timer.add([this]() {
-              tcp.removeConnection(this);
-            }, 2 * MSL);
+            timeWait = tcp.timer.add([this]() { tcp.removeConnection(this); },
+                                     2 * MSL);
           } else {
             state = St::CLOSING;
           }
@@ -1056,9 +1084,8 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
         case St::FIN_WAIT_2: {
           state = St::TIME_WAIT;
           removeSegments();
-          timeWait = tcp.timer.add([this]() {
-            tcp.removeConnection(this);
-          }, 2 * MSL);
+          timeWait =
+              tcp.timer.add([this]() { tcp.removeConnection(this); }, 2 * MSL);
           break;
         }
 
