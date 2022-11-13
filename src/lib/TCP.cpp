@@ -13,6 +13,15 @@ TCP::TCP(L3 &l3_)
     : dispatcher(l3_.l2.netBase.dispatcher), timer(l3_.l2.netBase.timer),
       l3(l3_), rnd(Timer::Clock::now().time_since_epoch().count()) {}
 
+TCP::~TCP() {
+  dispatcher.invoke([this]() {
+    for (auto &&e : listeners)
+      delete e.second;
+    for (auto &&e : connections)
+      delete e.second;
+  });
+}
+
 uint16_t TCP::checksum(const void *seg, size_t tcpLen, L3::Addr src,
                        L3::Addr dst) {
   const TCP::Header &header = *(const Header *)seg;
@@ -227,7 +236,7 @@ void TCP::removeConnection(Connection *conn) {
   delete conn;
 }
 
-TCP::Listener::Listener(const Desc &desc) : Desc(desc) {}
+TCP::Listener::Listener(const Desc &desc) : Desc(desc), isClosed(false) {}
 
 TCP::Listener::~Listener() {
   isClosed = true;

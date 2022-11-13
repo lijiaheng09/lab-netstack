@@ -22,7 +22,8 @@ int __real_close(int fildes);
 int __real_getaddrinfo(const char *node, const char *service,
                        const struct addrinfo *hints, struct addrinfo **res);
 void __real_freeaddrinfo(struct addrinfo *ai);
-
+int __real_setsockopt(int socket, int level, int option_name,
+                      const void *option_value, socklen_t option_len);
 /**
  * @see
  * [POSIX.1-2017:socket](http://pubs.opengroup.org/onlinepubs/9699919799/functions/socket.html)
@@ -86,6 +87,8 @@ int __wrap_getaddrinfo(const char *node, const char *service,
  */
 void __wrap_freeaddrinfo(struct addrinfo *ai);
 
+int __wrap_setsockopt(int socket, int level, int option_name,
+                      const void *option_value, socklen_t option_len);
 
 #ifdef __cplusplus
 }

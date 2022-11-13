@@ -57,6 +57,7 @@ public:
   std::mt19937 rnd;
 
   TCP(L3 &l3_);
+  ~TCP();
 
   int setup();
 

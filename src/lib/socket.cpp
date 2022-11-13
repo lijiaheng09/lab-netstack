@@ -249,20 +249,15 @@ int __wrap_getaddrinfo(const char *node, const char *service,
     }
   }
 
-  auto *saddr = new sockaddr_in {
-    .sin_family = AF_INET,
-    .sin_port = htons(port)
-  };
+  auto *saddr = new sockaddr_in{.sin_family = AF_INET, .sin_port = htons(port)};
   memcpy(&saddr->sin_addr, &addr, sizeof(IP::Addr));
 
-  *res = new addrinfo{
-    .ai_flags = 0,
-    .ai_family = AF_INET,
-    .ai_socktype = SOCK_DGRAM,
-    .ai_protocol = 0,
-    .ai_addrlen = sizeof(sockaddr_in),
-    .ai_addr = (struct sockaddr *)saddr
-  };
+  *res = new addrinfo{.ai_flags = 0,
+                      .ai_family = AF_INET,
+                      .ai_socktype = SOCK_DGRAM,
+                      .ai_protocol = 0,
+                      .ai_addrlen = sizeof(sockaddr_in),
+                      .ai_addr = (struct sockaddr *)saddr};
   return 0;
 }
 
@@ -274,4 +269,12 @@ void __wrap_freeaddrinfo(struct addrinfo *ai) {
       delete p->ai_addr;
     delete p;
   }
+}
+
+int __wrap_setsockopt(int fd, int level, int option_name,
+                      const void *option_value, socklen_t option_len) {
+  if (!ns.fds.count(fd))
+    return __real_setsockopt(fd, level, option_name, option_value, option_len);
+  errno = ENOPROTOOPT;
+  return -1;
 }

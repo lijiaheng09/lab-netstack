@@ -1,0 +1,97 @@
+Script started on 2022-11-13 00:57:19-08:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="94" LINES="80"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP7[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP7[00m$ source test.sh
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP7
+++ cd ../echo
+++ make clean-wrap
+rm echo_client_wrap echo_server_wrap perf_client_wrap perf_server_wrap
+++ make wrap
+gcc -o echo_client_wrap echo_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o echo_server_wrap echo_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_client_wrap perf_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_server_wrap perf_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+++ cd /home/lijiaheng/lab-netstack/checkpoints/CP7/../../utils/vnetUtils/examples
+++ sudo ./makeVNetRaw
+++ cd ../helper
+++ sleep 1
+++ sudo ./execNS ns1 tcpdump -n -c 1 -i veth1-2 -Q out -w /home/lijiaheng/lab-netstack/checkpoints/CP7/capture.pcap tcp
+tcpdump: listening on veth1-2, link-type EN10MB (Ethernet), capture size 262144 bytes
+++ sudo ./execNS ns2 /home/lijiaheng/lab-netstack/checkpoints/CP7/../echo/perf_client_wrap 10.100.1.1
+++ sudo ./execNS ns1 /home/lijiaheng/lab-netstack/checkpoints/CP7/../echo/perf_server_wrap
+Device added: veth1-2
+    ether 6a:f4:66:3c:60:25
+    inet 10.100.1.1 netmask 255.255.255.0
+Setting static routing...
+Using lab-netstack socket
+Protocol not available
+Device added: veth2-1
+    ether 02:cd:01:74:60:da
+    inet 10.100.1.2 netmask 255.255.255.0
+Device added: veth2-3
+    ether 02:b7:72:13:8f:12
+    inet 10.100.2.1 netmask 255.255.255.0
+Setting static routing...
+Using lab-netstack socket
+ARP query for 10.100.1.1: wait to try again
+sending ...
+ARP query for 10.100.1.2: wait to try again
+new connection
+Connection established
+Connection established
+1 packet captured
+389 packets received by filter
+0 packets dropped by kernel
+receiving ...
+1427.47 KB/s
+sending ...
+receiving ...
+3778.08 KB/s
+sending ...
+receiving ...
+2267.96 KB/s
+sending ...
+receiving ...
+2802.20 KB/s
+sending ...
+receiving ...
+2135.28 KB/s
+sending ...
+receiving ...
+2042.04 KB/s
+sending ...
+receiving ...
+1967.10 KB/s
+sending ...
+receiving ...
+1951.77 KB/s
+sending ...
+receiving ...
+2654.55 KB/s
+sending ...
+receiving ...
+2005.55 KB/s
+all: 1460000
+loop breaked: 0
+loop breaked: 0
+[1]-  Done                    sudo ./execNS ns1 tcpdump -n -c 1 -i veth1-2 -Q out -w $C/capture.pcap tcp
+[2]+  Done                    sudo ./execNS ns1 $C/../echo/perf_server_wrap
+++ wait
+++ cd ../examples
+++ sudo ./removeVNet
+++ tcpdump -XX -r /home/lijiaheng/lab-netstack/checkpoints/CP7/capture.pcap
+reading from file /home/lijiaheng/lab-netstack/checkpoints/CP7/capture.pcap, link-type EN10MB (Ethernet)
+00:57:27.448784 IP bogon.10086 > localhost.57163: Flags [S.], seq 2482714633, ack 2482711534, win 65535, length 0
+	0x0000:  02cd 0174 60da 6af4 663c 6025 0800 4500  ...t`.j.f<`%..E.
+	0x0010:  0028 0000 4000 3c06 2806 0a64 0101 0a64  .(..@.<.(..d...d
+	0x0020:  0102 2766 df4b 93fb 3809 93fb 2bee 5012  ..'f.K..8...+.P.
+	0x0030:  ffff 0668 0000                           ...h..
+++ exit
+
+Script done on 2022-11-13 00:57:28-08:00 [COMMAND_EXIT_CODE="0"]
