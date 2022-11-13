@@ -1,0 +1,72 @@
+Script started on 2022-11-13 02:46:57-08:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="94" LINES="79"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP10[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP10[00m$ source test.sh 
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP10
+++ E=/home/lijiaheng/lab-netstack/checkpoints/CP10/../echo
+++ cd /home/lijiaheng/lab-netstack/checkpoints/CP10/../echo
+++ make clean-wrap
+rm echo_client_wrap echo_client_check_wrap echo_server_wrap perf_client_wrap perf_server_wrap
+++ make wrap
+gcc -o echo_client_wrap echo_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o echo_client_check_wrap echo_client_check.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o echo_server_wrap echo_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_client_wrap perf_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_server_wrap perf_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+++ cd /home/lijiaheng/lab-netstack/checkpoints/CP10/../../utils/vnetUtils/examples
+++ sudo ./makeVNetRaw
+++ cd ../helper
+++ sudo ./execNS ns3 ../../../build/tools/cli -cw auto-config -r
+++ sudo ./execNS ns1 /home/lijiaheng/lab-netstack/checkpoints/CP10/../echo/perf_client_wrap 10.100.3.2
+++ sudo ./execNS ns4 /home/lijiaheng/lab-netstack/checkpoints/CP10/../echo/perf_server_wrap
+++ sudo ./execNS ns2 ../../../build/tools/cli -cw auto-config -r
+Protocol not available
+Enabled IP forwarding.
+Enabled IP forwarding.
+sending ...
+new connection
+receiving ...
+1708.82 KB/s
+sending ...
+receiving ...
+1477.72 KB/s
+sending ...
+receiving ...
+1994.34 KB/s
+sending ...
+receiving ...
+2036.69 KB/s
+sending ...
+receiving ...
+1245.22 KB/s
+sending ...
+receiving ...
+3037.36 KB/s
+sending ...
+receiving ...
+1972.81 KB/s
+sending ...
+receiving ...
+2030.82 KB/s
+sending ...
+receiving ...
+2042.39 KB/s
+sending ...
+receiving ...
+2538.34 KB/s
+all: 1460000
+++ wait %3
+[3]+  Done                    sudo ./execNS ns4 $E/perf_server_wrap 2> /dev/null
+++ cd ../examples
+++ sudo ./removeVNet
+++ exit
+
+Script done on 2022-11-13 02:47:04-08:00 [COMMAND_EXIT_CODE="0"]
