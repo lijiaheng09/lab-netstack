@@ -221,6 +221,11 @@ void TCP::handleRecvClosed(const void *data, size_t dataLen,
   }
 }
 
+void TCP::removeConnection(Connection *conn) {
+  connections.erase({conn->local, conn->foreign});
+  delete conn;
+}
+
 TCP::Listener::Listener(const Desc &desc) : Desc(desc) {}
 
 TCP::Listener::~Listener() {
@@ -307,18 +312,48 @@ int TCP::Listener::awaitClose() {
   tcp.dispatcher.invoke([this]() {
     tcp.listeners.erase(local);
     delete this;
-    // TODO: abort establishing & established connections
   });
   return 0;
 }
 
 TCP::Connection::Connection(const Desc &desc, Sock foreign_)
-    : Desc(desc), foreign(foreign_), isReset(false), hRcv(0),
-      tRcv(0), uRcv(0), rcvWnd(std::min((uint32_t)UINT16_MAX, BUF_SIZE)) {}
+    : Desc(desc), foreign(foreign_), isReset(false), hRcv(0), tRcv(0), uRcv(0),
+      timeWait(nullptr), rcvWnd(std::min((uint32_t)UINT16_MAX, BUF_SIZE)) {}
 
 TCP::Connection::~Connection() {
+  isReset = true;
+  if (state == St::SYN_RECEIVED || state == St::ESTABLISHED ||
+      state == St::FIN_WAIT_1 || state == St::FIN_WAIT_2 ||
+      state == St::CLOSE_WAIT) {
+    sendSeg(nullptr, 0, CTL_RST);
+  }
+  removeSegments();
+  notifyAll();
+}
+
+void TCP::Connection::removeSegments() {
   for (auto &&e : sndInfo)
-    free(e.data);
+    tcp.timer.remove(e.retrans);
+  sndInfo.clear();
+}
+
+void TCP::Connection::notifyAll() {
+  while (!pdSnd.empty()) {
+    pdSnd.front()();
+    pdSnd.pop();
+  }
+  while (!pdRcv.empty()) {
+    pdRcv.front()();
+    pdRcv.pop();
+  }
+  while (!onEstab.empty()) {
+    onEstab.front()();
+    onEstab.pop();
+  }
+  while (!onClose.empty()) {
+    onClose.front()();
+    onClose.pop();
+  }
 }
 
 int TCP::Connection::bind(Sock sock) {
@@ -340,7 +375,8 @@ int TCP::Connection::awaitClose() {
     switch (state) {
     case St::CLOSED: {
       LOG_ERR("connection does not exist");
-      return ret(-1);
+      tcp.removeConnection(this);
+      return ret(0);
     }
 
     case St::LISTEN: {
@@ -349,7 +385,7 @@ int TCP::Connection::awaitClose() {
     }
 
     case St::SYN_SENT: {
-      // TODO: delete TCB
+      tcp.removeConnection(this);
       return ret(0);
     }
 
@@ -559,7 +595,8 @@ ssize_t TCP::Connection::asyncSendAll(const void *data, size_t dataLen) {
   return sent;
 }
 
-int TCP::Connection::sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl, uint32_t seqNum) {
+int TCP::Connection::sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl,
+                             uint32_t seqNum) {
   return tcp.sendSeg(data, dataLen,
                      {.srcPort = htons(local.port),
                       .dstPort = htons(foreign.port),
@@ -575,7 +612,7 @@ int TCP::Connection::sendSeg(const void *data, uint32_t dataLen, uint8_t ctrl) {
 }
 
 void TCP::Connection::addSendSeg(const void *data, uint32_t dataLen,
-                                uint8_t ctrl) {
+                                 uint8_t ctrl) {
   uint32_t segLen = dataLen;
   if (ctrl & CTL_SYN)
     segLen++;
@@ -594,7 +631,8 @@ void TCP::Connection::addSendSeg(const void *data, uint32_t dataLen,
 
   int rc = sendSeg(data, dataLen, ctrl);
 
-  auto it = sndInfo.insert({sndNxt, sndNxt + segLen, dataCopy, dataLen, ctrl}).first;
+  auto it =
+      sndInfo.insert({sndNxt, sndNxt + segLen, dataCopy, dataLen, ctrl}).first;
 
   Timer::Handler retrans = [this, it]() {
     if (seqLe(sndUnAck, it->begin)) {
@@ -639,7 +677,6 @@ void TCP::Connection::advanceUnAck(uint32_t ack) {
   uint32_t ackNum = ack - sndUnAck;
   sndUnAck = ack;
   while (!sndInfo.empty() && seqLe(sndInfo.begin()->end, sndUnAck)) {
-    // TODO: remove timer
     auto p = sndInfo.begin();
     tcp.timer.remove(p->retrans);
     free(p->data);
@@ -734,9 +771,10 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
 
     if (h.ctrl & CTL_RST) {
       if (ackAcceptable) {
-        // TODO: connection reset.
         LOG_INFO("Conenction reset");
+        isReset = true;
         state = St::CLOSED;
+        notifyAll();
         return;
       } else {
         return;
@@ -756,15 +794,15 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       if (seqLt(initSndSeq, sndUnAck)) {
         sendSeg(nullptr, 0, CTL_ACK);
         if (establish() != 0) {
-          // TODO: handle error
+          // (handle error)
           abort();
         }
 
-        // TODO: URG & text
+        // (TODO) URG
       } else {
         state = St::SYN_RECEIVED;
 
-        // TODO: resend SYN-ACK ??
+        // resend SYN-ACK ??
         sendSeg(nullptr, 0, CTL_ACK);
       }
     }
@@ -810,7 +848,6 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
         sendSeg(nullptr, 0, CTL_ACK);
       return;
     }
-    // TODO: tailor the segment?
 
     // second check the RST bit
     switch (state) {
@@ -818,11 +855,11 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
       if (h.ctrl & CTL_RST) {
         // if (listener) ...
 
-        // TODO: signal user
         LOG_INFO("Connection refused");
         state = St::CLOSED;
+        removeSegments();
+        notifyAll();
 
-        // TODO: remove segments
         return;
       }
       break;
@@ -833,9 +870,11 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     case St::FIN_WAIT_2:
     case St::CLOSE_WAIT: {
       if (h.ctrl & CTL_RST) {
-        // TODO: signal user
+        isReset = true;
         LOG_INFO("Connection reset");
         state = St::CLOSED;
+        removeSegments();
+        notifyAll();
         return;
       }
       break;
@@ -845,9 +884,11 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     case St::LAST_ACK:
     case St::TIME_WAIT: {
       if (h.ctrl & CTL_RST) {
-        // TODO: reset
+        isReset = true;
         LOG_INFO("Connection reset");
         state = St::CLOSED;
+        removeSegments();
+        notifyAll();
         return;
       }
       break;
@@ -859,9 +900,11 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
     // fourth, check the SYN bit
     if (h.ctrl & CTL_SYN) {
       sendSeg(nullptr, 0, CTL_RST);
-      // TODO: Connection reset
+      isReset = true;
       LOG_INFO("Connection reset");
       state = St::CLOSED;
+      notifyAll();
+      removeSegments();
       return;
     }
 
@@ -877,7 +920,7 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
         sndWndUpdAck = segAck;
         checkSend();
         if (establish() != 0) {
-          // TODO: handle error
+          // (handle error)
           abort();
         }
       } else {
@@ -919,7 +962,6 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
           state = St::FIN_WAIT_2;
       }
       if (state == St::FIN_WAIT_2) {
-        // TODO: acknowledge user close
         if (sndInfo.empty()) {
           while (!onClose.empty()) {
             onClose.front()();
@@ -941,8 +983,8 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
 
     case St::LAST_ACK: {
       if (segAck == sndNxt) {
-        // TODO: delete this
         state = St::CLOSED;
+        tcp.removeConnection(this);
         return;
       }
       break;
@@ -950,7 +992,9 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
 
     case St::TIME_WAIT: {
       sendAck = true;
-      // TODO: restart 2 MSL timeout
+      tcp.timer.remove(timeWait);
+      timeWait =
+          tcp.timer.add([this]() { tcp.removeConnection(this); }, 2 * MSL);
       break;
     }
 
@@ -999,7 +1043,10 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
         case St::FIN_WAIT_1: {
           if (sndUnAck == sndNxt) {
             state = St::TIME_WAIT;
-            // TODO: start the TIME_WAIT timer & turn off other timers
+            removeSegments();
+            timeWait = tcp.timer.add([this]() {
+              tcp.removeConnection(this);
+            }, 2 * MSL);
           } else {
             state = St::CLOSING;
           }
@@ -1008,12 +1055,15 @@ void TCP::Connection::handleRecv(const void *data, size_t dataLen,
 
         case St::FIN_WAIT_2: {
           state = St::TIME_WAIT;
-          // TODO: start the TIME_WAIT timer & turn off other timers
+          removeSegments();
+          timeWait = tcp.timer.add([this]() {
+            tcp.removeConnection(this);
+          }, 2 * MSL);
           break;
         }
 
         case St::TIME_WAIT: {
-          // TODO: Restart the 2 MSL time-wait timeout.
+          // Restart the 2 MSL time-wait timeout (already done).
           break;
         }
         }

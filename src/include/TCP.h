@@ -119,6 +119,7 @@ public:
   static constexpr uint32_t MSS = 1024;
   static constexpr uint32_t BUF_SIZE = 128 << 10;
   static constexpr Timer::Duration RETRANS_TIMEOUT = 500ms;
+  static constexpr Timer::Duration MSL = 60s;
 
   class Connection : public Desc {
   public:
@@ -163,6 +164,10 @@ public:
     int awaitClose() override;
 
   private:
+    void notifyAll();
+
+    void removeSegments();
+
     void advanceUnAck(uint32_t ack);
 
     void checkSend();
@@ -207,6 +212,8 @@ public:
     Queue<WaitHandler> pdSnd, pdRcv, onEstab, onClose;
     OrdSet<SegInfo> rcvInfo;
     OrdSet<SndSegInfo> sndInfo;
+
+    Timer::Task *timeWait;
 
     uint32_t sndUnAck;  // send unacknowledged
     uint32_t sndNxt;    // send next
@@ -266,6 +273,8 @@ private:
   void handleRecvClosed(const void *data, size_t dataLen, const RecvInfo &info);
 
   void handleRecv(const void *seg, size_t tcpLen, const L3::RecvInfo &info);
+
+  void removeConnection(Connection *conn);
 };
 
 #endif

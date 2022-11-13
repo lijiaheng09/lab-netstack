@@ -70,6 +70,7 @@ int __wrap_socket(int domain, int type, int protocol) {
 
   TCP::Desc *desc = ns.tcp.create();
   if (!desc) {
+    // impossible
     return -1;
   }
   int fd = ns.curFd++;
@@ -94,8 +95,10 @@ int __wrap_bind(int fd, const struct sockaddr *address, socklen_t address_len) {
   TCP::Desc *d = ns.fds[fd];
   int rc;
   ns.invoke([&rc, d, sock]() { rc = d->bind(sock); });
-  if (rc != 0)
+  if (rc != 0) {
+    errno = EADDRINUSE;
     return -1;
+  }
   return 0;
 }
 
@@ -106,8 +109,10 @@ int __wrap_listen(int fd, int backlog) {
   TCP::Desc *d = ns.fds[fd];
   TCP::Listener *r;
   ns.invoke([&r, d]() { r = ns.tcp.listen(d); });
-  if (!r)
+  if (!r) {
+    errno = EINVAL;
     return -1;
+  }
   ns.fds[fd] = r;
   return 0;
 }
@@ -130,8 +135,10 @@ int __wrap_connect(int fd, const struct sockaddr *address,
   TCP::Desc *d = ns.fds[fd];
   TCP::Connection *r;
   ns.invoke([&r, d, sock]() { r = ns.tcp.connect(d, sock); });
-  if (!r)
+  if (!r) {
+    errno = ENETUNREACH;
     return -1;
+  }
   ns.fds[fd] = r;
   return 0;
 }
@@ -150,8 +157,10 @@ int __wrap_accept(int fd, struct sockaddr *address, socklen_t *address_len) {
     return -1;
   }
   TCP::Connection *c = d->awaitAccept();
-  if (!c)
+  if (!c) {
+    errno = ECONNABORTED;
     return -1;
+  }
   int accFd = ns.curFd++;
   ns.fds[accFd] = c;
 
@@ -176,8 +185,10 @@ ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
   }
 
   ssize_t rc = d->awaitRecv(buf, nbyte);
-  if (rc < 0)
+  if (rc < 0) {
+    errno = ECONNABORTED;
     return -1;
+  }
   return rc;
 }
 
@@ -192,8 +203,10 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
   }
 
   ssize_t rc = d->asyncSend(buf, nbyte);
-  if (rc < 0)
+  if (rc < 0) {
+    errno = ECONNABORTED;
     return -1;
+  }
   return rc;
 }
 
@@ -204,8 +217,10 @@ int __wrap_close(int fd) {
   TCP::Desc *d = ns.fds[fd];
   int rc = d->awaitClose();
   ns.fds.erase(fd);
-  if (rc < 0)
+  if (rc < 0) {
+    // impossible
     return -1;
+  }
   return 0;
 }
 
