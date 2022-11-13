@@ -1,4 +1,4 @@
-LAB=2
+LAB=3
 
 SUF=`cat handin-suf.txt`
 mkdir -p .tmp/lab"$LAB"
