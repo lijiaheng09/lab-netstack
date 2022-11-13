@@ -1,0 +1,72 @@
+Script started on 2022-11-13 02:35:48-08:00 [TERM="xterm-256color" TTY="/dev/pts/1" COLUMNS="94" LINES="79"]
+]0;lijiaheng@ubuntu: ~/lab-netstack/checkpoints/CP9[01;32mlijiaheng@ubuntu[00m:[01;34m~/lab-netstack/checkpoints/CP9[00m$ sudo ./removeVNet <example.txt [16Pcd ../examples/[1Psource test.shudo ./removeVNet <$C/vnet.txt [17Pource test.sh
+++ C=/home/lijiaheng/lab-netstack/checkpoints/CP9
+++ E=/home/lijiaheng/lab-netstack/checkpoints/CP9/../echo
+++ cd /home/lijiaheng/lab-netstack/checkpoints/CP9/../echo
+++ make clean-wrap
+rm echo_client_wrap echo_client_check_wrap echo_server_wrap perf_client_wrap perf_server_wrap
+++ make wrap
+gcc -o echo_client_wrap echo_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o echo_client_check_wrap echo_client_check.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o echo_server_wrap echo_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_client_wrap perf_client.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+gcc -o perf_server_wrap perf_server.c unp.c   \
+	-L ../../build/lib -llab-netstack-socket -lstdc++ -llab-netstack -lpcap -lpthread \
+	-Wl,--wrap,socket -Wl,--wrap,bind -Wl,--wrap,listen -Wl,--wrap,connect -Wl,--wrap,accept -Wl,--wrap,read -Wl,--wrap,write -Wl,--wrap,close -Wl,--wrap,getaddrinfo -Wl,--wrap,freeaddrinfo -Wl,--wrap,setsockopt
+++ cd /home/lijiaheng/lab-netstack/checkpoints/CP9/../../utils/vnetUtils/examples
+++ sudo ./makeVNetRaw
+++ cd ../helper
+++ sudo ./execNS ns3 ../../../build/tools/cli -cw auto-config -r
+++ sudo ./execNS ns1 /home/lijiaheng/lab-netstack/checkpoints/CP9/../echo/echo_client_wrap 10.100.3.2
+++ sudo ./execNS ns4 /home/lijiaheng/lab-netstack/checkpoints/CP9/../echo/echo_server_wrap
+++ sudo ./execNS ns2 ../../../build/tools/cli -cw auto-config -r
+Device added: veth1-2
+    ether 82:b7:53:a9:fb:02
+    inet 10.100.1.1 netmask 255.255.255.0
+Setting static routing...
+Using lab-netstack socket
+ARP query for 10.100.1.2: wait to try again
+Device added: veth4-3
+    ether 6e:e4:bc:f3:37:a8
+    inet 10.100.3.2 netmask 255.255.255.0
+Setting static routing...
+Using lab-netstack socket
+Enabled IP forwarding.
+Protocol not available
+Enabled IP forwarding.
+ARP query for 10.100.3.1: wait to try again
+new connection
+Connection established
+Connection established
+6 12 13 14 63 68 70 72 74 76 78 80 82 84 86 87 88 89 1113 4184 5208 8279 9303 12374 13398 15000 all: 15000
+loop #1 ok.
+Using lab-netstack socket
+new connection
+Connection established
+Connection established
+6 12 13 14 63 68 70 72 74 76 78 80 82 84 86 87 88 89 4184 8279 12374 15000 loop #2 ok.
+Using lab-netstack socket
+Connection established
+Connection established
+all: 15000
+new connection
+6 12 13 14 63 68 70 72 74 76 78 80 82 84 86 87 88 89 1113 4184 5208 8279 9303 12374 13398 15000 all: 15000
+loop breaked: 0
+loop #3 ok.
+loop breaked: 0
+[3]+  Done                    sudo ./execNS ns4 $E/echo_server_wrap
+++ wait %3
+bash: wait: %3: no such job
+++ cd ../examples
+++ sudo ./removeVNet
+++ exit
+
+Script done on 2022-11-13 02:36:40-08:00 [COMMAND_EXIT_CODE="0"]
